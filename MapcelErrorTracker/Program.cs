@@ -1,7 +1,11 @@
+using MapcelErrorTracker.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddSingleton<ErrorStore>();
+builder.Services.AddSingleton<CssProvider>();
 
 var app = builder.Build();
 
@@ -22,7 +26,7 @@ app.MapStaticAssets();
 
 app.MapControllerRoute(
         name: "default",
-        pattern: "{controller=Home}/{action=Index}/{id?}")
+        pattern: "{controller=Errors}/{action=Index}/{id?}")
     .WithStaticAssets();
 
 
