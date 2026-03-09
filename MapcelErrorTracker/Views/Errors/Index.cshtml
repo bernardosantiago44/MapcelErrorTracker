@@ -47,6 +47,7 @@ string roundedButton = "rounded-xl";
 string shadowSoft = "shadow-sm";
 string shadowHover = "hover:shadow-md";
 string shadowElevated = "shadow-md";
+string shadowInset = "shadow-inner shadow-slate-100";
 string cardBorder = "border border-slate-200";
 string controlHeight = "h-12";
 string chipPadding = "px-3 py-1.5";
@@ -201,7 +202,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
                                name="search"
                                value="@search"
                                placeholder="Buscar por código, módulo, descripción..."
-                               class="@controlHeight w-full @roundedCard border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 @shadowSoft placeholder:text-slate-400 @accentFocus" />
+                               class="@controlHeight w-full @roundedCard border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 @shadowInset placeholder:text-slate-400 @accentFocus" />
                     </div>
                 </form>
 
@@ -611,29 +612,29 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
                                         </span>
 
                                 <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
-                                            <i data-lucide="hash" class="h-3.5 w-3.5"></i>
+                                    <i data-lucide="hash" class="h-3.5 w-3.5"></i>
                                     @error.Occurrences ocurrencias
-                                        </span>
+                                </span>
 
                                 <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                            <i data-lucide="user-round" class="h-3.5 w-3.5"></i>
+                                    <i data-lucide="user-round" class="h-3.5 w-3.5"></i>
                                     @(string.IsNullOrWhiteSpace(error.Assignee) ? "Sin asignar" : error.Assignee)
-                                        </span>
+                                </span>
 
                                 @if (!string.IsNullOrWhiteSpace(error.Company))
                                 {
                                 <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                                 <i data-lucide="building-2" class="h-3.5 w-3.5"></i>
-                                     @error.Company
-                                             </span>
+                                    <i data-lucide="building-2" class="h-3.5 w-3.5"></i>
+                                    @error.Company
+                                </span>
                                 }
 
                                 @if (error.IsSilenced)
                                 {
                                 <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                                 <i data-lucide="bell-off" class="h-3.5 w-3.5"></i>
-                                                 Silenciado
-                                             </span>
+                                    <i data-lucide="bell-off" class="h-3.5 w-3.5"></i>
+                                    Silenciado
+                                </span>
                                 }
                             </div>
                         </div>
