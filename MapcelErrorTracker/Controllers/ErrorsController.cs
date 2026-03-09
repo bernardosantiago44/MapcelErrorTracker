@@ -59,9 +59,9 @@ public class ErrorsController(ErrorStore store) : Controller
             .Select(e => e.Assignee).Distinct().OrderBy(x => x).ToList();
 
         // KPI metrics (computed over all data, not filtered)
-        var now = DateTime.UtcNow;
+        var today = DateTime.UtcNow.Date;
         ViewBag.ActiveCount = all.Count(e => e.Status != ErrorStatus.Resolved);
-        ViewBag.NewTodayCount = all.Count(e => e.FirstSeen.Date == now.Date);
+        ViewBag.NewTodayCount = all.Count(e => e.FirstSeen.Date == today);
         ViewBag.HighPriorityCount = all.Count(e => e.Priority == ErrorPriority.Alta && e.Status != ErrorStatus.Resolved);
         ViewBag.UnassignedCount = all.Count(e => string.IsNullOrEmpty(e.Assignee) && e.Status != ErrorStatus.Resolved);
         ViewBag.PostponedCount = all.Count(e => e.Status == ErrorStatus.Postponed);

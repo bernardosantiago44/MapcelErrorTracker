@@ -104,15 +104,16 @@
     static string RelativeTime(DateTime dt)
     {
         var diff = DateTime.UtcNow - dt;
+        if (diff.TotalMinutes < 1) return "hace un momento";
         if (diff.TotalMinutes < 60)
         {
-            var m = Math.Max(1, (int)diff.TotalMinutes);
-            return $"hace {m} {(m == 1 ? "minuto" : "min")}";
+            var m = (int)diff.TotalMinutes;
+            return $"hace {m} min";
         }
         if (diff.TotalHours < 24)
         {
             var h = (int)diff.TotalHours;
-            return $"hace {h} {(h == 1 ? "hora" : "h")}";
+            return $"hace {h} h";
         }
         if (diff.TotalDays < 2) return "hace 1 día";
         return $"hace {(int)diff.TotalDays} días";
@@ -192,44 +193,33 @@
         <!-- Row 2: Quick action toggles -->
         <div class="flex items-center gap-2 mt-3 flex-wrap">
             @{
-                string HideResolvedUrl()
+                string BuildFilterUrl(string? excludeKey = null, string? toggleKey = null)
                 {
                     var qs = new List<string>();
-                    if (!string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
-                    if (!string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
-                    if (!string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
-                    if (!string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
-                    if (!string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
-                    if (!string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
-                    if (!string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
-                    if (!hideResolved) qs.Add("hideResolved=true");
-                    if (highPriorityOnly) qs.Add("highPriorityOnly=true");
-                    return "/Errors?" + string.Join("&", qs);
-                }
+                    if (excludeKey != "search" && !string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+                    if (excludeKey != "company" && !string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
+                    if (excludeKey != "program" && !string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
+                    if (excludeKey != "module" && !string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
+                    if (excludeKey != "status" && !string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
+                    if (excludeKey != "priority" && !string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
+                    if (excludeKey != "assignee" && !string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
 
-                string HighPriorityUrl()
-                {
-                    var qs = new List<string>();
-                    if (!string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
-                    if (!string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
-                    if (!string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
-                    if (!string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
-                    if (!string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
-                    if (!string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
-                    if (!string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
-                    if (hideResolved) qs.Add("hideResolved=true");
-                    if (!highPriorityOnly) qs.Add("highPriorityOnly=true");
+                    bool hr = toggleKey == "hideResolved" ? !hideResolved : hideResolved;
+                    bool hp = toggleKey == "highPriorityOnly" ? !highPriorityOnly : highPriorityOnly;
+                    if (excludeKey != "hideResolved" && hr) qs.Add("hideResolved=true");
+                    if (excludeKey != "highPriorityOnly" && hp) qs.Add("highPriorityOnly=true");
+
                     return "/Errors?" + string.Join("&", qs);
                 }
             }
-            <a href="@HideResolvedUrl()"
+            <a href="@BuildFilterUrl(toggleKey: "hideResolved")"
                class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors @(hideResolved ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/>
                 </svg>
                 Ocultar resueltos
             </a>
-            <a href="@HighPriorityUrl()"
+            <a href="@BuildFilterUrl(toggleKey: "highPriorityOnly")"
                class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors @(highPriorityOnly ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -282,25 +272,9 @@
         <div class="flex items-center gap-2 mb-4 flex-wrap">
             <span class="text-xs font-medium text-slate-500 mr-1">Filtros activos:</span>
             @{
-                // Build a base url helper that removes one filter at a time
-                string RemoveFilterUrl(string excludeKey)
-                {
-                    var qs = new List<string>();
-                    if (excludeKey != "search" && !string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
-                    if (excludeKey != "company" && !string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
-                    if (excludeKey != "program" && !string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
-                    if (excludeKey != "module" && !string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
-                    if (excludeKey != "status" && !string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
-                    if (excludeKey != "priority" && !string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
-                    if (excludeKey != "assignee" && !string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
-                    if (excludeKey != "hideResolved" && hideResolved) qs.Add("hideResolved=true");
-                    if (excludeKey != "highPriorityOnly" && highPriorityOnly) qs.Add("highPriorityOnly=true");
-                    return "/Errors?" + string.Join("&", qs);
-                }
-
                 void Chip(string label, string filterKey)
                 {
-                    <a href="@RemoveFilterUrl(filterKey)"
+                    <a href="@BuildFilterUrl(excludeKey: filterKey)"
                        class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors group"
                        title="Quitar filtro">
                         @label
