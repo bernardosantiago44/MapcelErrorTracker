@@ -440,7 +440,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
                         <div>
                             <label class="mb-1.5 block text-xs font-semibold text-slate-600">Empresa</label>
-                            <select name="company" class="h-11 w-full @roundedCard border border-slate-200 bg-white px-3 text-sm text-slate-700 @accentFocus">
+                            <select name="company" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
                                 <option value="">Todas</option>
                                 @foreach (var c in companies)
                                 {
@@ -451,7 +451,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
                         <div>
                             <label class="mb-1.5 block text-xs font-semibold text-slate-600">Programa</label>
-                            <select name="program" class="h-11 w-full @roundedCard border border-slate-200 bg-white px-3 text-sm text-slate-700 @accentFocus">
+                            <select name="program" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
                                 <option value="">Todos</option>
                                 @foreach (var p in programs)
                                 {
@@ -462,7 +462,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
                         <div>
                             <label class="mb-1.5 block text-xs font-semibold text-slate-600">Módulo</label>
-                            <select name="module" class="h-11 w-full @roundedCard border border-slate-200 bg-white px-3 text-sm text-slate-700 @accentFocus">
+                            <select name="module" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
                                 <option value="">Todos</option>
                                 @foreach (var m in modules)
                                 {
@@ -473,7 +473,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
                         <div>
                             <label class="mb-1.5 block text-xs font-semibold text-slate-600">Prioridad</label>
-                            <select name="priority" class="h-11 w-full @roundedCard border border-slate-200 bg-white px-3 text-sm text-slate-700 @accentFocus">
+                            <select name="priority" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
                                 <option value="">Todas</option>
                                 @foreach (var p in Enum.GetValues<ErrorPriority>())
                                 {
@@ -484,7 +484,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
                         <div>
                             <label class="mb-1.5 block text-xs font-semibold text-slate-600">Estado</label>
-                            <select name="status" class="h-11 w-full @roundedCard border border-slate-200 bg-white px-3 text-sm text-slate-700 @accentFocus">
+                            <select name="status" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
                                 <option value="">Todos</option>
                                 @foreach (var s in Enum.GetValues<ErrorStatus>())
                                 {
@@ -495,7 +495,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
                         <div>
                             <label class="mb-1.5 block text-xs font-semibold text-slate-600">Responsable</label>
-                            <select name="assignee" class="h-11 w-full @roundedCard border border-slate-200 bg-white px-3 text-sm text-slate-700 @accentFocus">
+                            <select name="assignee" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
                                 <option value="">Todos</option>
                                 @foreach (var a in assignees)
                                 {
