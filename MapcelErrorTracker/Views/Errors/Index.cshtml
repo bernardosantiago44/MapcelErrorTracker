@@ -35,6 +35,7 @@ string accentBg = "bg-emerald-600";
 string accentBgSoft = "bg-emerald-50";
 string accentBorder = "border-emerald-200";
 string accentText = "text-emerald-700";
+string accentHoverText = "hover:text-emerald-700";
 string accentHoverBg = "hover:bg-emerald-700";
 string accentHoverSoft = "hover:bg-emerald-100";
 string accentRing = "ring-emerald-200";
@@ -52,7 +53,8 @@ string chipPadding = "px-3 py-1.5";
 string cardPadding = "px-5 py-4";
 string kpiPadding = "p-3";
 string kpiIconSize = "h-9 w-9";
-string activeFilterChipClass = $"inline-flex items-center gap-1.5 {roundedPill} {chipPadding} text-xs font-semibold {accentBgSoft} {accentText} ring-1 {accentRing} {shadowSoft} transition hover:bg-red-50 hover:text-red-600 hover:ring-red-200";
+string dangerHover = "hover:bg-red-50 hover:text-red-600 hover:ring-red-200";
+string activeFilterChipClass = $"inline-flex items-center gap-1.5 {roundedPill} {chipPadding} text-xs font-semibold {accentBgSoft} {accentText} ring-1 {accentRing} {shadowSoft} transition {dangerHover}";
 string kpiBaseClass = $"group relative overflow-hidden {roundedCard} {cardBorder} bg-white {kpiPadding} {shadowSoft} transition hover:-translate-y-0.5 hover:border-slate-300 {shadowHover}";
 string kpiActiveClass = $"{accentBgSoft} {accentBorder} {shadowElevated}";
 
@@ -242,7 +244,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
 
     <div class="mx-auto max-w-[1600px] px-6 py-6">
         <!-- KPI cards -->
-        <div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
             <a href="@KpiHrefOrFallback(Url.Action("Index", new { hideResolved = true }))"
                class="@($"{kpiBaseClass} {(isActiveKpi ? kpiActiveClass : string.Empty)}")">
                 <div class="absolute inset-x-0 top-0 h-1 bg-emerald-500"></div>
@@ -572,7 +574,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
                             <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <a asp-action="Details"
                                    asp-route-id="@error.Id"
-                                    class="font-mono text-[15px] font-bold text-slate-900 transition hover:text-emerald-700">
+                                    class="font-mono text-[15px] font-bold text-slate-900 transition @accentHoverText">
                                     @error.Code
                                 </a>
 
