@@ -20,6 +20,10 @@ This project is a simple internal web dashboard used by developers to visualize 
 
 The scope of this prototype is strictly a **UI-first validation tool**. It should include a main dashboard showing a table of errors with filters (company, program, status, priority, search), and a detail view that shows full information about a selected error (description, timestamps, occurrences, exception message, and stack trace). Developers should be able to change the error status (new, postponed, in review, resolved) and priority (low, medium, high). All data must come from an **in-memory mock store**, and simple MVC endpoints can be used to simulate updates. The goal is to demonstrate how developers would interact with the system and validate the user interface with stakeholders.
 
+When writing UI elements, such as cards, chips, make them as reusable as possible with components and functions. Following this structure, we may achieve:
+
+1. Structure: Reading and editing atomic components, such as font size or colors is easy and straightforward.
+2. Reusability: When changes are needed, they are easy to implement since components are reused throughout the system.
+3. Scalability: Large pages are easy to maintain and add new elements, since they are built upon smaller components.
+
 Out of scope for this prototype are database integration, authentication systems, real error ingestion endpoints, chat integrations, background services, or complex analytics. No persistence is required; updates can live only in memory during runtime. The prototype should remain intentionally simple and focus only on demonstrating the UI layout, error lifecycle actions, filtering, and navigation between the dashboard and detail views.
-
-
