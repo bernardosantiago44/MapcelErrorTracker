@@ -601,15 +601,15 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
                             </p>
 
                             <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                        <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                            <i data-lucide="calendar-clock" class="h-3.5 w-3.5"></i>
-                                            Primera: @RelativeTime(error.FirstSeen)
-                                        </span>
+                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
+                                    <i data-lucide="calendar-clock" class="h-3.5 w-3.5"></i>
+                                    Primera: @RelativeTime(error.FirstSeen)
+                                </span>
 
                                 <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                            <i data-lucide="history" class="h-3.5 w-3.5"></i>
-                                            Última: @RelativeTime(error.LastSeen)
-                                        </span>
+                                    <i data-lucide="history" class="h-3.5 w-3.5"></i>
+                                    Última: @RelativeTime(error.LastSeen)
+                                </span>
 
                                 <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
                                     <i data-lucide="hash" class="h-3.5 w-3.5"></i>
