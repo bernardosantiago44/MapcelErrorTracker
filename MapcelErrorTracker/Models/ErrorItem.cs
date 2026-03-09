@@ -1,6 +1,6 @@
 namespace MapcelErrorTracker.Models;
 
-public enum ErrorPriority { Low, Medium, High }
+public enum ErrorPriority { Baja, Media, Alta }
 public enum ErrorStatus { New, Postponed, InReview, Resolved }
 
 public class ActivityLogEntry

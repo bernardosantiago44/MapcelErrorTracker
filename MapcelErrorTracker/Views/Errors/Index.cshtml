@@ -13,8 +13,8 @@
 @functions {
     static string PriorityBadge(ErrorPriority p) => p switch
     {
-        ErrorPriority.High => "bg-red-100 text-red-700 border border-red-300",
-        ErrorPriority.Medium => "bg-amber-100 text-amber-700 border border-amber-300",
+        ErrorPriority.Alta => "bg-red-100 text-red-700 border border-red-300",
+        ErrorPriority.Media => "bg-amber-100 text-amber-700 border border-amber-300",
         _ => "bg-gray-100 text-gray-600 border border-gray-300"
     };
 
@@ -42,15 +42,15 @@
         if (diff.TotalMinutes < 60)
         {
             var m = (int)diff.TotalMinutes;
-            return $"about {m} {(m == 1 ? "minute" : "minutes")} ago";
+            return $"hace alrededor de {m} {(m == 1 ? "minuto" : "minutos")}";
         }
         if (diff.TotalHours < 24)
         {
             var h = (int)diff.TotalHours;
-            return $"about {h} {(h == 1 ? "hour" : "hours")} ago";
+            return $"hace alrededor de {h} {(h == 1 ? "hora" : "horas")}";
         }
-        if (diff.TotalDays < 2) return "1 day ago";
-        return $"{(int)diff.TotalDays} days ago";
+        if (diff.TotalDays < 2) return "Hace 1 día";
+        return $"hace {(int)diff.TotalDays} días";
     }
 }
 
@@ -73,7 +73,7 @@
         {
             <span class="flex items-center gap-1.5 bg-red-50 text-red-600 border border-red-200 rounded-full px-3 py-1 text-sm font-medium">
                 <span class="w-2 h-2 bg-red-500 rounded-full inline-block"></span>
-                @highCount high priority
+                @highCount alta prioridad
             </span>
         }
     </div>
@@ -86,13 +86,13 @@
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
                 </svg>
-                <input type="text" name="search" value="@search" placeholder="Search errors..."
+                <input type="text" name="search" value="@search" placeholder="Buscar errores..."
                        class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"/>
             </div>
 
             <!-- Program -->
             <select name="program" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]">
-                <option value="">All Programs</option>
+                <option value="">Todos los programas</option>
                 @foreach (var program in programs)
                 {
                     <option value="@program" selected="@(selProgram == program ? "selected" : null)">@program</option>
@@ -101,7 +101,7 @@
 
             <!-- Status -->
             <select name="status" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[140px]">
-                <option value="">All Statuses</option>
+                <option value="">Todos los estatus</option>
                 @foreach (var status in Enum.GetValues<ErrorStatus>())
                 {
                     <option value="@status" selected="@(selStatus == status.ToString() ? "selected" : null)">@StatusLabel(status)</option>
@@ -110,7 +110,7 @@
 
             <!-- Priority -->
             <select name="priority" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[140px]">
-                <option value="">All Priorities</option>
+                <option value="">Todas las prioridades</option>
                 @foreach (var priority in Enum.GetValues<ErrorPriority>())
                 {
                     <option value="@priority" selected="@(selPriority == priority.ToString() ? "selected" : null)">@priority</option>
@@ -118,29 +118,29 @@
             </select>
 
             <button type="submit" class="bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
-                Filter
+                Aplicar filtro
             </button>
             @if (!string.IsNullOrEmpty(selProgram) || !string.IsNullOrEmpty(selStatus) || !string.IsNullOrEmpty(selPriority) || !string.IsNullOrEmpty(search))
             {
-                <a asp-action="Index" class="text-sm text-gray-500 hover:text-gray-700 px-2 py-2 underline">Clear</a>
+                <a asp-action="Index" class="text-sm text-gray-500 hover:text-gray-700 px-2 py-2 underline">Borrar filtros</a>
             }
         </form>
     </div>
 
     <!-- Error count -->
-    <p class="text-sm text-gray-500 mb-3">@Model.Count error@(Model.Count == 1 ? "" : "s")</p>
+    <p class="text-sm text-gray-500 mb-3">@Model.Count error@(Model.Count == 1 ? "" : "es")</p>
 
     <!-- Table -->
     <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <table class="w-full text-sm">
             <thead>
             <tr class="border-b border-gray-200 bg-gray-50">
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Priority</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Code</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Program</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Last Occurred ↑↓</th>
-                <th class="text-right px-5 py-3 font-semibold text-gray-600">Count ↑↓</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Status ↑↓</th>
+                <th class="text-left px-5 py-3 font-semibold text-gray-600">Prioridad</th>
+                <th class="text-left px-5 py-3 font-semibold text-gray-600">Código</th>
+                <th class="text-left px-5 py-3 font-semibold text-gray-600">Programa</th>
+                <th class="text-left px-5 py-3 font-semibold text-gray-600">Última ocurrencia ↑↓</th>
+                <th class="text-right px-5 py-3 font-semibold text-gray-600">Conteo ↑↓</th>
+                <th class="text-left px-5 py-3 font-semibold text-gray-600">Estatus ↑↓</th>
                 <th class="px-5 py-3"></th>
             </tr>
             </thead>
@@ -148,7 +148,7 @@
             @if (Model.Count == 0)
             {
                 <tr>
-                    <td colspan="8" class="text-center py-12 text-gray-400">No errors found matching the current filters.</td>
+                    <td colspan="8" class="text-center py-12 text-gray-400">No se encontraron resultados con esos filtros.</td>
                 </tr>
             }
             @foreach (var error in Model)

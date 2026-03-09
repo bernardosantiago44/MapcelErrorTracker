@@ -32,7 +32,7 @@ public class ErrorsController(ErrorStore store) : Controller
 
         var all = store.GetAll();
         ViewBag.Programs = all.Select(e => e.Program).Distinct().OrderBy(x => x).ToList();
-        ViewBag.HighPriorityCount = all.Count(e => e.Priority == ErrorPriority.High && e.Status != ErrorStatus.Resolved);
+        ViewBag.HighPriorityCount = all.Count(e => e.Priority == ErrorPriority.Alta && e.Status != ErrorStatus.Resolved);
         ViewBag.SelectedProgram = program;
         ViewBag.SelectedStatus = status;
         ViewBag.SelectedPriority = priority;
