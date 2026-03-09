@@ -50,6 +50,7 @@ public class ErrorStore
             {
                 Id = 1,
                 Code = "API-5001",
+                Company = "Mapcel S.A.",
                 Program = "Payment Gateway",
                 Module = "PaymentController.ProcessPayment",
                 Description = "Unhandled exception while processing payment transaction. Transaction rolled back.",
@@ -60,6 +61,7 @@ public class ErrorStore
                 LastSeen = now.AddHours(-4),
                 ExceptionMessage = "System.TimeoutException: The operation has timed out.",
                 StackTrace = "at PaymentGateway.Controllers.PaymentController.ProcessPayment(PaymentRequest req)\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.SyncActionResultExecutor.Execute()\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.InvokeActionMethodAsync()\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)",
+                Assignee = "Carlos López",
                 ActivityLog =
                 [
                     new() { Timestamp = now.AddDays(-5), User = "System", Message = "Error detected" }
@@ -69,6 +71,7 @@ public class ErrorStore
             {
                 Id = 2,
                 Code = "WRK-3200",
+                Company = "Mapcel S.A.",
                 Program = "Email Worker",
                 Module = "EmailWorker.ProcessMessage",
                 Description = "Failed to deserialize email template payload. Malformed JSON body received from upstream queue.",
@@ -79,6 +82,7 @@ public class ErrorStore
                 LastSeen = now.AddHours(-8),
                 ExceptionMessage = "Newtonsoft.Json.JsonReaderException: Unexpected character encountered while parsing value: <. Path '', line 0, position 0.",
                 StackTrace = "at EmailWorker.ProcessMessage(QueueMessage msg) in /src/Workers/EmailWorker.cs:line 34\r\n   at Newtonsoft.Json.JsonTextReader.ParseValue()\r\n   at QueueProcessor.HandleMessage(String body)",
+                Assignee = "Sarah Chen",
                 ActivityLog =
                 [
                     new() { Timestamp = now.AddDays(-2), User = "System", Message = "Error detected" },
@@ -90,6 +94,7 @@ public class ErrorStore
             {
                 Id = 3,
                 Code = "INT-7010",
+                Company = "Distribuciones Norte",
                 Program = "CRM Integration",
                 Module = "CrmSyncService.PushContact",
                 Description = "CRM API rejected contact sync request with 422 Unprocessable Entity.",
@@ -109,6 +114,7 @@ public class ErrorStore
             {
                 Id = 4,
                 Code = "API-4040",
+                Company = "Mapcel S.A.",
                 Program = "User Service",
                 Module = "UserController.GetProfile",
                 Description = "User profile not found in the database. Possible data migration issue.",
@@ -119,6 +125,7 @@ public class ErrorStore
                 LastSeen = now.AddHours(-20),
                 ExceptionMessage = "KeyNotFoundException: User with id '44f2c' was not found.",
                 StackTrace = "at UserService.Controllers.UserController.GetProfile(String userId) in /src/Controllers/UserController.cs:line 55\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.SyncActionResultExecutor.Execute()",
+                Assignee = "Miguel Ángel Torres",
                 ActivityLog =
                 [
                     new() { Timestamp = now.AddDays(-10), User = "System", Message = "Error detected" },
@@ -129,6 +136,7 @@ public class ErrorStore
             {
                 Id = 5,
                 Code = "WRK-1500",
+                Company = "Logística Express",
                 Program = "Report Generator",
                 Module = "ReportBuilder.GeneratePdf",
                 Description = "PDF generation failed due to missing font file in deployment package.",
@@ -148,6 +156,7 @@ public class ErrorStore
             {
                 Id = 6,
                 Code = "API-4220",
+                Company = "Distribuciones Norte",
                 Program = "Auth Service",
                 Module = "TokenService.ValidateJwt",
                 Description = "JWT validation failed due to expired signing certificate. All auth requests are rejected.",
@@ -158,6 +167,7 @@ public class ErrorStore
                 LastSeen = now.AddDays(-4),
                 ExceptionMessage = "SecurityTokenExpiredException: IDX10223: Lifetime validation failed. The token is expired.",
                 StackTrace = "at AuthService.Services.TokenService.ValidateJwt(String token) in /src/Services/TokenService.cs:line 67\r\n   at Microsoft.IdentityModel.Tokens.Validators.ValidateLifetime()\r\n   at System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.ValidateToken()",
+                Assignee = "Carlos López",
                 ActivityLog =
                 [
                     new() { Timestamp = now.AddDays(-10), User = "System", Message = "Error detected" },
@@ -170,6 +180,7 @@ public class ErrorStore
             {
                 Id = 7,
                 Code = "INT-8080",
+                Company = "Mapcel S.A.",
                 Program = "Webhook Handler",
                 Module = "WebhookController.Receive",
                 Description = "Incoming webhook signature verification failed. Possible replay attack or misconfigured secret.",
@@ -189,6 +200,7 @@ public class ErrorStore
             {
                 Id = 8,
                 Code = "WRK-9900",
+                Company = "Logística Express",
                 Program = "Data Pipeline",
                 Module = "EtlJob.TransformBatch",
                 Description = "ETL batch transformation produced null output on record #1042. Downstream write skipped.",
@@ -199,10 +211,96 @@ public class ErrorStore
                 LastSeen = now.AddDays(-1),
                 ExceptionMessage = "NullReferenceException: Object reference not set to an instance of an object.",
                 StackTrace = "at DataPipeline.Jobs.EtlJob.TransformBatch(IEnumerable`1 records) in /src/Jobs/EtlJob.cs:line 203\r\n   at DataPipeline.Workers.PipelineWorker.RunBatch(BatchContext ctx)",
+                Assignee = "Ana Martínez",
                 ActivityLog =
                 [
                     new() { Timestamp = now.AddDays(-3), User = "System", Message = "Error detected" },
                     new() { Timestamp = now.AddDays(-2), User = "dev@local", Message = "Status changed to InReview" }
+                ]
+            },
+            new ErrorItem
+            {
+                Id = 9,
+                Code = "API-5001",
+                Company = "Distribuciones Norte",
+                Program = "Payment Gateway",
+                Module = "PaymentController.ProcessPayment",
+                Description = "Timeout in payment processing. Transaction rolled back after 30s threshold.",
+                Priority = ErrorPriority.Alta,
+                Status = ErrorStatus.New,
+                Occurrences = 87,
+                FirstSeen = now.AddDays(-1),
+                LastSeen = now.AddHours(-1),
+                ExceptionMessage = "System.TimeoutException: The operation has timed out.",
+                StackTrace = "at PaymentGateway.Controllers.PaymentController.ProcessPayment(PaymentRequest req)\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.SyncActionResultExecutor.Execute()",
+                ActivityLog =
+                [
+                    new() { Timestamp = now.AddDays(-1), User = "System", Message = "Error detected" }
+                ]
+            },
+            new ErrorItem
+            {
+                Id = 10,
+                Code = "WRK-4400",
+                Company = "Mapcel S.A.",
+                Program = "Notification Service",
+                Module = "PushNotifier.SendBatch",
+                Description = "Push notification batch delivery failed. Firebase returned 503 Service Unavailable.",
+                Priority = ErrorPriority.Media,
+                Status = ErrorStatus.New,
+                Occurrences = 34,
+                FirstSeen = now.AddHours(-18),
+                LastSeen = now.AddHours(-2),
+                ExceptionMessage = "HttpRequestException: Response status code does not indicate success: 503 (Service Unavailable).",
+                StackTrace = "at NotificationService.PushNotifier.SendBatch(List`1 tokens) in /src/Services/PushNotifier.cs:line 78\r\n   at System.Net.Http.HttpClient.SendAsync(HttpRequestMessage request)",
+                Assignee = "Sarah Chen",
+                IsSilenced = true,
+                ActivityLog =
+                [
+                    new() { Timestamp = now.AddHours(-18), User = "System", Message = "Error detected" },
+                    new() { Timestamp = now.AddHours(-10), User = "Sarah Chen", Message = "Silenced notifications - Firebase known outage" }
+                ]
+            },
+            new ErrorItem
+            {
+                Id = 11,
+                Code = "INT-7010",
+                Company = "Logística Express",
+                Program = "CRM Integration",
+                Module = "CrmSyncService.PushContact",
+                Description = "CRM API rejected contact sync with 422 error. Invalid field mapping on custom fields.",
+                Priority = ErrorPriority.Alta,
+                Status = ErrorStatus.InReview,
+                Occurrences = 65,
+                FirstSeen = now.AddDays(-4),
+                LastSeen = now.AddHours(-3),
+                ExceptionMessage = "HttpRequestException: Response status code does not indicate success: 422 (Unprocessable Entity).",
+                StackTrace = "at CrmIntegration.Services.CrmSyncService.PushContact(ContactDto contact) in /src/Services/CrmSyncService.cs:line 89\r\n   at System.Net.Http.HttpClient.SendAsync(HttpRequestMessage request)",
+                Assignee = "Miguel Ángel Torres",
+                ActivityLog =
+                [
+                    new() { Timestamp = now.AddDays(-4), User = "System", Message = "Error detected" },
+                    new() { Timestamp = now.AddDays(-3), User = "Miguel Ángel Torres", Message = "Status changed to InReview" }
+                ]
+            },
+            new ErrorItem
+            {
+                Id = 12,
+                Code = "API-6100",
+                Company = "Mapcel S.A.",
+                Program = "Inventory Service",
+                Module = "StockController.UpdateQuantity",
+                Description = "Concurrency conflict updating stock quantity. Optimistic concurrency check failed.",
+                Priority = ErrorPriority.Baja,
+                Status = ErrorStatus.New,
+                Occurrences = 7,
+                FirstSeen = now.AddHours(-6),
+                LastSeen = now.AddHours(-3),
+                ExceptionMessage = "DbUpdateConcurrencyException: The database operation was expected to affect 1 row(s), but actually affected 0 row(s).",
+                StackTrace = "at InventoryService.Controllers.StockController.UpdateQuantity(StockUpdateRequest req) in /src/Controllers/StockController.cs:line 42\r\n   at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ThrowAggregateUpdateConcurrencyException()",
+                ActivityLog =
+                [
+                    new() { Timestamp = now.AddHours(-6), User = "System", Message = "Error detected" }
                 ]
             }
         ];

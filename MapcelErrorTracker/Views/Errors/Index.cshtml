@@ -1,190 +1,595 @@
 @model List<MapcelErrorTracker.Models.ErrorItem>
 @using MapcelErrorTracker.Models
 @{
-    ViewData["Title"] = "Error Logger Dashboard";
-    var programs = ViewBag.Programs as List<string> ?? new List<string>();
-    int highCount = ViewBag.HighPriorityCount ?? 0;
+    ViewData["Title"] = "Errores";
+
+    var companies = ViewBag.Companies as List<string> ?? [];
+    var programs = ViewBag.Programs as List<string> ?? [];
+    var modules = ViewBag.Modules as List<string> ?? [];
+    var assignees = ViewBag.Assignees as List<string> ?? [];
+
+    int activeCount = ViewBag.ActiveCount ?? 0;
+    int newTodayCount = ViewBag.NewTodayCount ?? 0;
+    int highPriorityCount = ViewBag.HighPriorityCount ?? 0;
+    int unassignedCount = ViewBag.UnassignedCount ?? 0;
+    int postponedCount = ViewBag.PostponedCount ?? 0;
+    int recurrentCount = ViewBag.RecurrentCount ?? 0;
+    int silencedCount = ViewBag.SilencedCount ?? 0;
+
+    string? selCompany = ViewBag.SelectedCompany;
     string? selProgram = ViewBag.SelectedProgram;
+    string? selModule = ViewBag.SelectedModule;
     string? selStatus = ViewBag.SelectedStatus;
     string? selPriority = ViewBag.SelectedPriority;
+    string? selAssignee = ViewBag.SelectedAssignee;
     string? search = ViewBag.Search;
+    bool hideResolved = ViewBag.HideResolved ?? false;
+    bool highPriorityOnly = ViewBag.HighPriorityOnly ?? false;
+
+    bool hasActiveFilters = !string.IsNullOrEmpty(selCompany) || !string.IsNullOrEmpty(selProgram) ||
+        !string.IsNullOrEmpty(selModule) || !string.IsNullOrEmpty(selStatus) ||
+        !string.IsNullOrEmpty(selPriority) || !string.IsNullOrEmpty(selAssignee) ||
+        !string.IsNullOrEmpty(search) || hideResolved || highPriorityOnly;
 }
 
 @functions {
-    static string PriorityBadge(ErrorPriority p) => p switch
+    static string PriorityBadgeCss(ErrorPriority p) => p switch
     {
         ErrorPriority.Alta => "bg-red-100 text-red-700 border border-red-300",
         ErrorPriority.Media => "bg-amber-100 text-amber-700 border border-amber-300",
-        _ => "bg-gray-100 text-gray-600 border border-gray-300"
+        _ => "bg-slate-100 text-slate-600 border border-slate-300"
     };
 
-    static string StatusBadge(ErrorStatus s) => s switch
+    static string PriorityDotCss(ErrorPriority p) => p switch
     {
-        ErrorStatus.New => "bg-green-50 text-green-700 border border-green-300",
+        ErrorPriority.Alta => "bg-red-500",
+        ErrorPriority.Media => "bg-amber-500",
+        _ => "bg-slate-400"
+    };
+
+    static string PriorityLabel(ErrorPriority p) => p switch
+    {
+        ErrorPriority.Alta => "Alta",
+        ErrorPriority.Media => "Media",
+        _ => "Baja"
+    };
+
+    static string StatusBadgeCss(ErrorStatus s) => s switch
+    {
+        ErrorStatus.New => "bg-emerald-50 text-emerald-700 border border-emerald-300",
         ErrorStatus.InReview => "bg-blue-50 text-blue-700 border border-blue-300",
         ErrorStatus.Postponed => "bg-amber-50 text-amber-700 border border-amber-300",
-        ErrorStatus.Resolved => "bg-gray-50 text-gray-500 border border-gray-300",
-        _ => "bg-gray-100 text-gray-600 border border-gray-300"
+        ErrorStatus.Resolved => "bg-slate-50 text-slate-500 border border-slate-300",
+        _ => "bg-slate-100 text-slate-600 border border-slate-300"
     };
 
     static string StatusLabel(ErrorStatus s) => s switch
     {
-        ErrorStatus.New => "New",
-        ErrorStatus.InReview => "In Review",
-        ErrorStatus.Postponed => "Postponed",
-        ErrorStatus.Resolved => "Resolved",
+        ErrorStatus.New => "Nuevo",
+        ErrorStatus.InReview => "En revisión",
+        ErrorStatus.Postponed => "Pospuesto",
+        ErrorStatus.Resolved => "Resuelto",
         _ => s.ToString()
     };
+
+    static string StatusIcon(ErrorStatus s) => s switch
+    {
+        ErrorStatus.New => "●",
+        ErrorStatus.InReview => "◐",
+        ErrorStatus.Postponed => "◷",
+        ErrorStatus.Resolved => "✓",
+        _ => "○"
+    };
+
+    static string AgeLabel(DateTime firstSeen)
+    {
+        var days = (DateTime.UtcNow - firstSeen).TotalDays;
+        if (days < 1) return "Nuevo hoy";
+        if (days < 2) return "1 día";
+        if (days < 7) return $"{(int)days} días";
+        if (days < 14) return "1 semana";
+        if (days < 30) return $"{(int)(days / 7)} semanas";
+        return $"{(int)(days / 30)} mes{((int)(days / 30) > 1 ? "es" : "")}";
+    }
+
+    static string AgeBadgeCss(DateTime firstSeen)
+    {
+        var days = (DateTime.UtcNow - firstSeen).TotalDays;
+        if (days < 1) return "text-emerald-600 bg-emerald-50";
+        if (days < 3) return "text-blue-600 bg-blue-50";
+        if (days < 7) return "text-amber-600 bg-amber-50";
+        return "text-red-600 bg-red-50";
+    }
 
     static string RelativeTime(DateTime dt)
     {
         var diff = DateTime.UtcNow - dt;
         if (diff.TotalMinutes < 60)
         {
-            var m = (int)diff.TotalMinutes;
-            return $"hace alrededor de {m} {(m == 1 ? "minuto" : "minutos")}";
+            var m = Math.Max(1, (int)diff.TotalMinutes);
+            return $"hace {m} {(m == 1 ? "minuto" : "min")}";
         }
         if (diff.TotalHours < 24)
         {
             var h = (int)diff.TotalHours;
-            return $"hace alrededor de {h} {(h == 1 ? "hora" : "horas")}";
+            return $"hace {h} {(h == 1 ? "hora" : "h")}";
         }
-        if (diff.TotalDays < 2) return "Hace 1 día";
+        if (diff.TotalDays < 2) return "hace 1 día";
         return $"hace {(int)diff.TotalDays} días";
+    }
+
+    static string TruncateText(string text, int maxLen)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLen) return text;
+        return text[..maxLen] + "…";
     }
 }
 
-<div class="max-w-7xl mx-auto px-6 py-8">
-
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
-        <div class="flex items-center gap-3">
-            <div class="bg-emerald-600 text-white rounded-lg p-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                </svg>
+<!-- =================== ZONE 1: FIXED HEADER =================== -->
+<div class="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-[1600px] mx-auto px-6 py-4">
+        <!-- Row 1: Title + Search + Actions -->
+        <div class="flex items-center gap-4 flex-wrap">
+            <!-- Title block -->
+            <div class="flex-shrink-0 mr-2">
+                <div class="flex items-center gap-2.5">
+                    <div class="bg-emerald-600 text-white rounded-lg p-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-900 leading-tight">Errores</h1>
+                        <p class="text-xs text-slate-500">
+                            <span class="font-medium text-emerald-600">@activeCount activos</span>
+                            <span class="mx-1">·</span>
+                            @(Model.Count(e => e.Status == ErrorStatus.InReview)) en revisión
+                            <span class="mx-1">·</span>
+                            @(Model.Count(e => e.Status == ErrorStatus.Postponed)) pospuestos
+                        </p>
+                    </div>
+                </div>
             </div>
-            <div>
-                <h1 class="text-xl font-bold text-gray-900">Error Logger Dashboard</h1>
+
+            <!-- Search bar -->
+            <form method="get" asp-action="Index" id="mainSearchForm" class="flex-1 min-w-[200px] max-w-xl">
+                <!-- Preserve current filter values -->
+                @if (!string.IsNullOrEmpty(selCompany)) { <input type="hidden" name="company" value="@selCompany"/> }
+                @if (!string.IsNullOrEmpty(selProgram)) { <input type="hidden" name="program" value="@selProgram"/> }
+                @if (!string.IsNullOrEmpty(selModule)) { <input type="hidden" name="module" value="@selModule"/> }
+                @if (!string.IsNullOrEmpty(selStatus)) { <input type="hidden" name="status" value="@selStatus"/> }
+                @if (!string.IsNullOrEmpty(selPriority)) { <input type="hidden" name="priority" value="@selPriority"/> }
+                @if (!string.IsNullOrEmpty(selAssignee)) { <input type="hidden" name="assignee" value="@selAssignee"/> }
+                @if (hideResolved) { <input type="hidden" name="hideResolved" value="true"/> }
+                @if (highPriorityOnly) { <input type="hidden" name="highPriorityOnly" value="true"/> }
+                <div class="relative">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+                    </svg>
+                    <input type="text" name="search" value="@search" placeholder="Buscar por código, módulo, descripción…"
+                           class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"/>
+                </div>
+            </form>
+
+            <!-- Action buttons -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <!-- Filter panel toggle -->
+                <button type="button" onclick="toggleFilterPanel()"
+                        class="inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                    </svg>
+                    Filtros
+                    @if (hasActiveFilters)
+                    {
+                        <span class="bg-emerald-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">!</span>
+                    }
+                </button>
             </div>
         </div>
-        @if (highCount > 0)
-        {
-            <span class="flex items-center gap-1.5 bg-red-50 text-red-600 border border-red-200 rounded-full px-3 py-1 text-sm font-medium">
-                <span class="w-2 h-2 bg-red-500 rounded-full inline-block"></span>
-                @highCount alta prioridad
-            </span>
-        }
-    </div>
 
-    <!-- Filters -->
-    <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
-        <form method="get" asp-action="Index" class="flex flex-wrap gap-3 items-center">
-            <!-- Search -->
-            <div class="relative flex-1 min-w-[220px]">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+        <!-- Row 2: Quick action toggles -->
+        <div class="flex items-center gap-2 mt-3 flex-wrap">
+            @{
+                string HideResolvedUrl()
+                {
+                    var qs = new List<string>();
+                    if (!string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+                    if (!string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
+                    if (!string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
+                    if (!string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
+                    if (!string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
+                    if (!string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
+                    if (!string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
+                    if (!hideResolved) qs.Add("hideResolved=true");
+                    if (highPriorityOnly) qs.Add("highPriorityOnly=true");
+                    return "/Errors?" + string.Join("&", qs);
+                }
+
+                string HighPriorityUrl()
+                {
+                    var qs = new List<string>();
+                    if (!string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+                    if (!string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
+                    if (!string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
+                    if (!string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
+                    if (!string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
+                    if (!string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
+                    if (!string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
+                    if (hideResolved) qs.Add("hideResolved=true");
+                    if (!highPriorityOnly) qs.Add("highPriorityOnly=true");
+                    return "/Errors?" + string.Join("&", qs);
+                }
+            }
+            <a href="@HideResolvedUrl()"
+               class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors @(hideResolved ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/>
                 </svg>
-                <input type="text" name="search" value="@search" placeholder="Buscar errores..."
-                       class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"/>
-            </div>
+                Ocultar resueltos
+            </a>
+            <a href="@HighPriorityUrl()"
+               class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors @(highPriorityOnly ? "bg-red-600 text-white border-red-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+                Prioridad alta
+            </a>
 
-            <!-- Program -->
-            <select name="program" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]">
-                <option value="">Todos los programas</option>
-                @foreach (var program in programs)
-                {
-                    <option value="@program" selected="@(selProgram == program ? "selected" : null)">@program</option>
-                }
-            </select>
-
-            <!-- Status -->
-            <select name="status" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[140px]">
-                <option value="">Todos los estatus</option>
-                @foreach (var status in Enum.GetValues<ErrorStatus>())
-                {
-                    <option value="@status" selected="@(selStatus == status.ToString() ? "selected" : null)">@StatusLabel(status)</option>
-                }
-            </select>
-
-            <!-- Priority -->
-            <select name="priority" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[140px]">
-                <option value="">Todas las prioridades</option>
-                @foreach (var priority in Enum.GetValues<ErrorPriority>())
-                {
-                    <option value="@priority" selected="@(selPriority == priority.ToString() ? "selected" : null)">@priority</option>
-                }
-            </select>
-
-            <button type="submit" class="bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
-                Aplicar filtro
-            </button>
-            @if (!string.IsNullOrEmpty(selProgram) || !string.IsNullOrEmpty(selStatus) || !string.IsNullOrEmpty(selPriority) || !string.IsNullOrEmpty(search))
+            @if (hasActiveFilters)
             {
-                <a asp-action="Index" class="text-sm text-gray-500 hover:text-gray-700 px-2 py-2 underline">Borrar filtros</a>
+                <a asp-action="Index" class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-red-600 px-2 py-1.5 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    Borrar filtros
+                </a>
             }
-        </form>
-    </div>
-
-    <!-- Error count -->
-    <p class="text-sm text-gray-500 mb-3">@Model.Count error@(Model.Count == 1 ? "" : "es")</p>
-
-    <!-- Table -->
-    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <table class="w-full text-sm">
-            <thead>
-            <tr class="border-b border-gray-200 bg-gray-50">
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Prioridad</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Código</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Programa</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Última ocurrencia ↑↓</th>
-                <th class="text-right px-5 py-3 font-semibold text-gray-600">Conteo ↑↓</th>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600">Estatus ↑↓</th>
-                <th class="px-5 py-3"></th>
-            </tr>
-            </thead>
-            <tbody>
-            @if (Model.Count == 0)
-            {
-                <tr>
-                    <td colspan="8" class="text-center py-12 text-gray-400">No se encontraron resultados con esos filtros.</td>
-                </tr>
-            }
-            @foreach (var error in Model)
-            {
-                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td class="px-5 py-3.5">
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold @PriorityBadge(error.Priority)">
-                            @error.Priority
-                        </span>
-                    </td>
-                    <td class="px-5 py-3.5">
-                        <a asp-action="Details" asp-route-id="@error.Id"
-                           class="font-mono text-teal-600 hover:text-teal-800 hover:underline font-medium">
-                            @error.Code
-                        </a>
-                    </td>
-                    <td class="px-5 py-3.5 text-gray-700">@error.Program</td>
-                    <td class="px-5 py-3.5 text-gray-500">@RelativeTime(error.LastSeen)</td>
-                    <td class="px-5 py-3.5 text-right font-semibold text-gray-800">@error.Occurrences</td>
-                    <td class="px-5 py-3.5">
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium @StatusBadge(error.Status)">
-                            @StatusLabel(error.Status)
-                        </span>
-                    </td>
-                    <td class="px-5 py-3.5 text-right">
-                        <a asp-action="Details" asp-route-id="@error.Id"
-                           class="text-gray-400 hover:text-gray-700 transition-colors">
-                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M9 5l7 7-7 7"/>
-                            </svg>
-                        </a>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+        </div>
     </div>
 </div>
+
+<div class="max-w-[1600px] mx-auto px-6 py-5">
+
+    <!-- =================== ZONE 2: KPI SUMMARY BAR =================== -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+        @{
+            void KpiCard(string label, int count, string icon, string colorCss, string? filterUrl)
+            {
+                <a href="@(filterUrl ?? "#")"
+                   class="group block bg-white border border-slate-200 rounded-xl px-4 py-3 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-sm @colorCss">@icon</span>
+                        <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wide">@label</span>
+                    </div>
+                    <p class="text-2xl font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">@count</p>
+                </a>;
+            }
+        }
+        @{ KpiCard("Activos", activeCount, "●", "text-emerald-500", Url.Action("Index", new { hideResolved = true })); }
+        @{ KpiCard("Nuevos hoy", newTodayCount, "★", "text-blue-500", null); }
+        @{ KpiCard("Alta prioridad", highPriorityCount, "▲", "text-red-500", Url.Action("Index", new { priority = "Alta", hideResolved = true })); }
+        @{ KpiCard("Sin asignar", unassignedCount, "○", "text-orange-500", null); }
+        @{ KpiCard("Pospuestos", postponedCount, "◷", "text-amber-500", Url.Action("Index", new { status = "Postponed" })); }
+        @{ KpiCard("Recurrentes", recurrentCount, "↻", "text-purple-500", null); }
+        @{ KpiCard("Silenciados", silencedCount, "🔇", "text-slate-400", null); }
+    </div>
+
+    <!-- =================== ACTIVE FILTER CHIPS =================== -->
+    @if (hasActiveFilters)
+    {
+        <div class="flex items-center gap-2 mb-4 flex-wrap">
+            <span class="text-xs font-medium text-slate-500 mr-1">Filtros activos:</span>
+            @{
+                // Build a base url helper that removes one filter at a time
+                string RemoveFilterUrl(string excludeKey)
+                {
+                    var qs = new List<string>();
+                    if (excludeKey != "search" && !string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+                    if (excludeKey != "company" && !string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
+                    if (excludeKey != "program" && !string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
+                    if (excludeKey != "module" && !string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
+                    if (excludeKey != "status" && !string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
+                    if (excludeKey != "priority" && !string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
+                    if (excludeKey != "assignee" && !string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
+                    if (excludeKey != "hideResolved" && hideResolved) qs.Add("hideResolved=true");
+                    if (excludeKey != "highPriorityOnly" && highPriorityOnly) qs.Add("highPriorityOnly=true");
+                    return "/Errors?" + string.Join("&", qs);
+                }
+
+                void Chip(string label, string filterKey)
+                {
+                    <a href="@RemoveFilterUrl(filterKey)"
+                       class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors group"
+                       title="Quitar filtro">
+                        @label
+                        <svg class="w-3 h-3 text-emerald-400 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </a>;
+                }
+            }
+            @if (!string.IsNullOrEmpty(search)) { Chip($"Búsqueda: \"{search}\"", "search"); }
+            @if (!string.IsNullOrEmpty(selCompany)) { Chip($"Empresa: {selCompany}", "company"); }
+            @if (!string.IsNullOrEmpty(selProgram)) { Chip($"Programa: {selProgram}", "program"); }
+            @if (!string.IsNullOrEmpty(selModule)) { Chip($"Módulo: {selModule}", "module"); }
+            @if (!string.IsNullOrEmpty(selStatus) && Enum.TryParse<ErrorStatus>(selStatus, out var chipStatus)) { Chip($"Estado: {StatusLabel(chipStatus)}", "status"); }
+            @if (!string.IsNullOrEmpty(selPriority)) { Chip($"Prioridad: {selPriority}", "priority"); }
+            @if (!string.IsNullOrEmpty(selAssignee)) { Chip($"Responsable: {selAssignee}", "assignee"); }
+            @if (hideResolved) { Chip("Resueltos ocultos", "hideResolved"); }
+            @if (highPriorityOnly) { Chip("Solo alta prioridad", "highPriorityOnly"); }
+        </div>
+    }
+
+    <div class="flex gap-5">
+        <!-- =================== ZONE 3: SIDE FILTER PANEL =================== -->
+        <div id="filterPanel" class="hidden w-72 flex-shrink-0">
+            <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-5 sticky top-[120px]">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-slate-800">Filtros avanzados</h3>
+                    <button type="button" onclick="toggleFilterPanel()" class="text-slate-400 hover:text-slate-600">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <form method="get" asp-action="Index" class="space-y-4">
+                    <!-- Preserve search -->
+                    @if (!string.IsNullOrEmpty(search)) { <input type="hidden" name="search" value="@search"/> }
+                    @if (hideResolved) { <input type="hidden" name="hideResolved" value="true"/> }
+                    @if (highPriorityOnly) { <input type="hidden" name="highPriorityOnly" value="true"/> }
+
+                    <!-- Company -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Empresa</label>
+                        <select name="company" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                            <option value="">Todas</option>
+                            @foreach (var c in companies)
+                            {
+                                <option value="@c" selected="@(selCompany == c ? "selected" : null)">@c</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Program -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Programa</label>
+                        <select name="program" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                            <option value="">Todos</option>
+                            @foreach (var p in programs)
+                            {
+                                <option value="@p" selected="@(selProgram == p ? "selected" : null)">@p</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Module -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Módulo</label>
+                        <select name="module" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                            <option value="">Todos</option>
+                            @foreach (var m in modules)
+                            {
+                                <option value="@m" selected="@(selModule == m ? "selected" : null)">@m</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Priority -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Prioridad</label>
+                        <select name="priority" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                            <option value="">Todas</option>
+                            @foreach (var p in Enum.GetValues<ErrorPriority>())
+                            {
+                                <option value="@p" selected="@(selPriority == p.ToString() ? "selected" : null)">@PriorityLabel(p)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Status -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Estado</label>
+                        <select name="status" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                            <option value="">Todos</option>
+                            @foreach (var s in Enum.GetValues<ErrorStatus>())
+                            {
+                                <option value="@s" selected="@(selStatus == s.ToString() ? "selected" : null)">@StatusLabel(s)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Assignee -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Responsable</label>
+                        <select name="assignee" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                            <option value="">Todos</option>
+                            @foreach (var a in assignees)
+                            {
+                                <option value="@a" selected="@(selAssignee == a ? "selected" : null)">@a</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="pt-2 flex gap-2">
+                        <button type="submit" class="flex-1 bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-medium">
+                            Aplicar
+                        </button>
+                        <a asp-action="Index" class="flex-1 text-center text-sm text-slate-500 border border-slate-200 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors">
+                            Limpiar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- =================== ZONE 4: MAIN ERROR LIST =================== -->
+        <div class="flex-1 min-w-0">
+            <!-- Results count -->
+            <div class="flex items-center justify-between mb-3">
+                <p class="text-sm text-slate-500">
+                    <span class="font-semibold text-slate-700">@Model.Count</span> error@(Model.Count == 1 ? "" : "es")
+                    @if (hasActiveFilters) { <span class="text-slate-400">(filtrado)</span> }
+                </p>
+            </div>
+
+            <!-- Error cards -->
+            <div class="space-y-2">
+                @if (Model.Count == 0)
+                {
+                    <div class="bg-white border border-slate-200 rounded-xl p-12 text-center">
+                        <svg class="w-12 h-12 mx-auto text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p class="text-slate-500 text-sm font-medium">No se encontraron errores con los filtros seleccionados.</p>
+                        <a asp-action="Index" class="inline-block mt-3 text-emerald-600 text-sm hover:underline">Borrar filtros</a>
+                    </div>
+                }
+
+                @foreach (var error in Model)
+                {
+                    <!-- CARD ROW -->
+                    <div class="bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-slate-300 transition-all group">
+                        <div class="flex items-stretch">
+                            <!-- LEFT COLUMN: Priority + Status + Age -->
+                            <div class="flex-shrink-0 w-28 border-r border-slate-100 p-4 flex flex-col items-center justify-center gap-2">
+                                <!-- Priority badge -->
+                                <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold @PriorityBadgeCss(error.Priority)">
+                                    <span class="w-1.5 h-1.5 rounded-full @PriorityDotCss(error.Priority)"></span>
+                                    @PriorityLabel(error.Priority)
+                                </span>
+                                <!-- Status badge -->
+                                <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium @StatusBadgeCss(error.Status)">
+                                    @StatusIcon(error.Status) @StatusLabel(error.Status)
+                                </span>
+                                <!-- Age indicator -->
+                                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full @AgeBadgeCss(error.FirstSeen)">
+                                    @AgeLabel(error.FirstSeen)
+                                </span>
+                            </div>
+
+                            <!-- CENTER: Error identity -->
+                            <div class="flex-1 min-w-0 p-4">
+                                <!-- Line 1: Code · Program · Module -->
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <a asp-action="Details" asp-route-id="@error.Id"
+                                       class="font-mono font-bold text-sm text-emerald-700 hover:text-emerald-900 hover:underline">
+                                        @error.Code
+                                    </a>
+                                    <span class="text-slate-300">·</span>
+                                    <span class="text-xs font-medium text-slate-600">@error.Program</span>
+                                    <span class="text-slate-300">·</span>
+                                    <span class="text-xs font-mono text-slate-400">@error.Module</span>
+                                </div>
+
+                                <!-- Line 2: Description -->
+                                <p class="text-sm text-slate-700 leading-snug mb-2 line-clamp-1" title="@error.Description">
+                                    @TruncateText(error.Description, 120)
+                                </p>
+
+                                <!-- Line 3: Metadata row -->
+                                <div class="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                                    <span class="inline-flex items-center gap-1" title="Primera ocurrencia">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        @RelativeTime(error.FirstSeen)
+                                    </span>
+                                    <span class="inline-flex items-center gap-1" title="Última ocurrencia">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        @RelativeTime(error.LastSeen)
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 font-semibold text-slate-500" title="Ocurrencias">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+                                        @error.Occurrences
+                                    </span>
+                                    @if (!string.IsNullOrEmpty(error.Assignee))
+                                    {
+                                        <span class="inline-flex items-center gap-1" title="Responsable">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                            @error.Assignee
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center gap-1 text-orange-400" title="Sin asignar">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                            Sin asignar
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(error.Company))
+                                    {
+                                        <span class="inline-flex items-center gap-1" title="Empresa">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                            @error.Company
+                                        </span>
+                                    }
+                                    @if (error.IsSilenced)
+                                    {
+                                        <span class="inline-flex items-center gap-1 text-slate-400" title="Notificaciones pausadas">
+                                            🔇 Silenciado
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- RIGHT COLUMN: Quick actions -->
+                            <div class="flex-shrink-0 border-l border-slate-100 p-3 flex flex-col items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <a asp-action="Details" asp-route-id="@error.Id"
+                                   class="w-full text-center text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-emerald-600 hover:text-white transition-colors"
+                                   title="Ver detalle">
+                                    Ver detalle
+                                </a>
+                                @if (error.Status != ErrorStatus.InReview)
+                                {
+                                    <form asp-action="UpdateStatusFromList" method="post" class="w-full">
+                                        <input type="hidden" name="id" value="@error.Id"/>
+                                        <input type="hidden" name="status" value="InReview"/>
+                                        <button type="submit"
+                                                class="w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+                                                title="Marcar en revisión">
+                                            En revisión
+                                        </button>
+                                    </form>
+                                }
+                                @if (error.Status != ErrorStatus.Postponed)
+                                {
+                                    <form asp-action="UpdateStatusFromList" method="post" class="w-full">
+                                        <input type="hidden" name="id" value="@error.Id"/>
+                                        <input type="hidden" name="status" value="Postponed"/>
+                                        <button type="submit"
+                                                class="w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors"
+                                                title="Posponer">
+                                            Posponer
+                                        </button>
+                                    </form>
+                                }
+                                @if (error.Status != ErrorStatus.Resolved)
+                                {
+                                    <form asp-action="UpdateStatusFromList" method="post" class="w-full">
+                                        <input type="hidden" name="id" value="@error.Id"/>
+                                        <input type="hidden" name="status" value="Resolved"/>
+                                        <button type="submit"
+                                                class="w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-emerald-600 hover:text-white transition-colors"
+                                                title="Resolver">
+                                            Resolver
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function toggleFilterPanel() {
+        const panel = document.getElementById('filterPanel');
+        panel.classList.toggle('hidden');
+    }
+</script>
+}
