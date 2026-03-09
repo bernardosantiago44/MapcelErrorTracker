@@ -55,7 +55,7 @@ string cardPadding = "px-5 py-4";
 string kpiPadding = "p-3";
 string kpiIconSize = "h-9 w-9";
 string dangerHover = "hover:bg-red-50 hover:text-red-600 hover:ring-red-200";
-string activeFilterChipClass = $"inline-flex items-center gap-1.5 {roundedPill} {chipPadding} text-xs font-semibold {accentBgSoft} {accentText} ring-1 {accentRing} {shadowSoft} transition {dangerHover}";
+string filterChipClass = $"inline-flex items-center gap-1.5 {roundedPill} {chipPadding} text-xs font-semibold {accentBgSoft} {accentText} ring-1 {accentRing} {shadowSoft} transition {dangerHover}";
 string kpiBaseClass = $"group relative overflow-hidden {roundedCard} {cardBorder} bg-white {kpiPadding} {shadowSoft} transition hover:-translate-y-0.5 hover:border-slate-300 {shadowHover}";
 string kpiActiveClass = $"{accentBgSoft} {accentBorder} {shadowElevated}";
 
@@ -345,7 +345,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(search))
             {
             <a href="@BuildFilterUrl(excludeKey: "search")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Búsqueda: "@search"
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -354,7 +354,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(selCompany))
             {
             <a href="@BuildFilterUrl(excludeKey: "company")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Empresa: @selCompany
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -363,7 +363,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(selProgram))
             {
             <a href="@BuildFilterUrl(excludeKey: "program")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Programa: @selProgram
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -372,7 +372,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(selModule))
             {
             <a href="@BuildFilterUrl(excludeKey: "module")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Módulo: @selModule
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -381,7 +381,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(selStatus) && Enum.TryParse<ErrorStatus>(selStatus, out var chipStatus))
             {
             <a href="@BuildFilterUrl(excludeKey: "status")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Estado: @StatusLabel(chipStatus)
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -390,7 +390,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(selPriority))
             {
             <a href="@BuildFilterUrl(excludeKey: "priority")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Prioridad: @selPriority
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -399,7 +399,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (!string.IsNullOrEmpty(selAssignee))
             {
             <a href="@BuildFilterUrl(excludeKey: "assignee")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Responsable: @selAssignee
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -408,7 +408,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (hideResolved)
             {
             <a href="@BuildFilterUrl(excludeKey: "hideResolved")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Resueltos ocultos
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
@@ -417,7 +417,7 @@ static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ?
             @if (highPriorityOnly)
             {
             <a href="@BuildFilterUrl(excludeKey: "highPriorityOnly")"
-               class="@activeFilterChipClass">
+               class="@filterChipClass">
                 Solo alta prioridad
                 <i data-lucide="x" class="h-3 w-3"></i>
             </a>
