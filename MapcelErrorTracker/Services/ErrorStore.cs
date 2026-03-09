@@ -50,7 +50,6 @@ public class ErrorStore
             {
                 Id = 1,
                 Code = "API-5001",
-                Company = "Mapcel",
                 Program = "Payment Gateway",
                 Module = "PaymentController.ProcessPayment",
                 Description = "Unhandled exception while processing payment transaction. Transaction rolled back.",
@@ -70,7 +69,6 @@ public class ErrorStore
             {
                 Id = 2,
                 Code = "WRK-3200",
-                Company = "Mapcel",
                 Program = "Email Worker",
                 Module = "EmailWorker.ProcessMessage",
                 Description = "Failed to deserialize email template payload. Malformed JSON body received from upstream queue.",
@@ -92,7 +90,6 @@ public class ErrorStore
             {
                 Id = 3,
                 Code = "INT-7010",
-                Company = "Empresa de Prueba",
                 Program = "CRM Integration",
                 Module = "CrmSyncService.PushContact",
                 Description = "CRM API rejected contact sync request with 422 Unprocessable Entity.",
@@ -112,7 +109,6 @@ public class ErrorStore
             {
                 Id = 4,
                 Code = "API-4040",
-                Company = "Mapcel",
                 Program = "User Service",
                 Module = "UserController.GetProfile",
                 Description = "User profile not found in the database. Possible data migration issue.",
@@ -133,7 +129,6 @@ public class ErrorStore
             {
                 Id = 5,
                 Code = "WRK-1500",
-                Company = "Empresa de Prueba",
                 Program = "Report Generator",
                 Module = "ReportBuilder.GeneratePdf",
                 Description = "PDF generation failed due to missing font file in deployment package.",
@@ -153,7 +148,6 @@ public class ErrorStore
             {
                 Id = 6,
                 Code = "API-4220",
-                Company = "Mapcel",
                 Program = "Auth Service",
                 Module = "TokenService.ValidateJwt",
                 Description = "JWT validation failed due to expired signing certificate. All auth requests are rejected.",
@@ -176,7 +170,6 @@ public class ErrorStore
             {
                 Id = 7,
                 Code = "INT-8080",
-                Company = "Empresa de Prueba",
                 Program = "Webhook Handler",
                 Module = "WebhookController.Receive",
                 Description = "Incoming webhook signature verification failed. Possible replay attack or misconfigured secret.",
@@ -196,7 +189,6 @@ public class ErrorStore
             {
                 Id = 8,
                 Code = "WRK-9900",
-                Company = "Mapcel",
                 Program = "Data Pipeline",
                 Module = "EtlJob.TransformBatch",
                 Description = "ETL batch transformation produced null output on record #1042. Downstream write skipped.",

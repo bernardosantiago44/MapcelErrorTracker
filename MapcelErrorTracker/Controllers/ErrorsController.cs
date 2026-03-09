@@ -6,12 +6,9 @@ namespace MapcelErrorTracker.Controllers;
 
 public class ErrorsController(ErrorStore store) : Controller
 {
-    public IActionResult Index(string? company, string? program, string? status, string? priority, string? search)
+    public IActionResult Index(string? program, string? status, string? priority, string? search)
     {
         var query = store.GetAll().AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(company))
-            query = query.Where(e => e.Company == company);
 
         if (!string.IsNullOrWhiteSpace(program))
             query = query.Where(e => e.Program == program);
@@ -34,10 +31,8 @@ public class ErrorsController(ErrorStore store) : Controller
         var errors = query.ToList();
 
         var all = store.GetAll();
-        ViewBag.Companies = all.Select(e => e.Company).Distinct().OrderBy(x => x).ToList();
         ViewBag.Programs = all.Select(e => e.Program).Distinct().OrderBy(x => x).ToList();
         ViewBag.HighPriorityCount = all.Count(e => e.Priority == ErrorPriority.High && e.Status != ErrorStatus.Resolved);
-        ViewBag.SelectedCompany = company;
         ViewBag.SelectedProgram = program;
         ViewBag.SelectedStatus = status;
         ViewBag.SelectedPriority = priority;
