@@ -13,6 +13,93 @@ public class ErrorStore
 
     public List<ErrorItem> GetAll() => _errors;
 
+    public ErrorListViewModel GetList(ErrorListQuery query)
+    {
+        query.SortBy = NormalizeSortBy(query.SortBy);
+        query.SortDirection = query.SafeSortDirection;
+        query.Page = query.SafePage;
+        query.PageSize = query.SafePageSize;
+
+        var filtered = _errors.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            filtered = filtered.Where(e =>
+                Contains(e.Code, search) ||
+                Contains(e.Company, search) ||
+                Contains(e.Program, search) ||
+                Contains(e.Module, search) ||
+                Contains(e.Description, search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Company))
+        {
+            var company = query.Company.Trim();
+            filtered = filtered.Where(e => Contains(e.Company, company));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Program))
+        {
+            var program = query.Program.Trim();
+            filtered = filtered.Where(e => Contains(e.Program, program));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Status) &&
+            Enum.TryParse<ErrorStatus>(query.Status, ignoreCase: true, out var status))
+        {
+            filtered = filtered.Where(e => e.Status == status);
+        }
+        else
+        {
+            filtered = filtered.Where(e => e.Status != ErrorStatus.Resolved);
+            query.Status = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Priority) &&
+            Enum.TryParse<ErrorPriority>(query.Priority, ignoreCase: true, out var priority))
+        {
+            filtered = filtered.Where(e => e.Priority == priority);
+        }
+        else
+        {
+            query.Priority = null;
+        }
+
+        var sorted = ApplySort(filtered, query.SortBy, query.SortDirection);
+        var filteredErrors = sorted.ToList();
+        var filteredRecords = filteredErrors.Count;
+        var pageSize = query.SafePageSize;
+        var totalPages = filteredRecords == 0 ? 1 : (int)Math.Ceiling(filteredRecords / (double)pageSize);
+        var currentPage = Math.Min(query.SafePage, totalPages);
+
+        query.Page = currentPage;
+        query.PageSize = pageSize;
+
+        return new ErrorListViewModel
+        {
+            Query = query,
+            Errors = filteredErrors
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToList(),
+            Companies = _errors.Select(e => e.Company)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList(),
+            Programs = _errors.Select(e => e.Program)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList(),
+            TotalRecords = _errors.Count,
+            FilteredRecords = filteredRecords,
+            CurrentPage = currentPage,
+            PageSize = pageSize
+        };
+    }
+
     public ErrorItem? GetById(int id) => _errors.FirstOrDefault(e => e.Id == id);
 
     public void UpdateStatus(int id, ErrorStatus status)
@@ -40,6 +127,66 @@ public class ErrorStore
             Message = $"Priority changed to {priority}"
         });
     }
+
+    private static bool Contains(string source, string value) =>
+        !string.IsNullOrWhiteSpace(source) &&
+        source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeSortBy(string? sortBy) =>
+        !string.IsNullOrWhiteSpace(sortBy) && ErrorListSortFields.Allowed.Contains(sortBy)
+            ? sortBy
+            : ErrorListSortFields.LastSeen;
+
+    private static IEnumerable<ErrorItem> ApplySort(
+        IEnumerable<ErrorItem> errors,
+        string sortBy,
+        string sortDirection)
+    {
+        var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<ErrorItem> sorted = sortBy switch
+        {
+            ErrorListSortFields.Status => descending
+                ? errors.OrderByDescending(e => StatusRank(e.Status))
+                : errors.OrderBy(e => StatusRank(e.Status)),
+            ErrorListSortFields.Priority => descending
+                ? errors.OrderByDescending(e => PriorityRank(e.Priority))
+                : errors.OrderBy(e => PriorityRank(e.Priority)),
+            ErrorListSortFields.Company => descending
+                ? errors.OrderByDescending(e => e.Company)
+                : errors.OrderBy(e => e.Company),
+            ErrorListSortFields.ErrorCode => descending
+                ? errors.OrderByDescending(e => e.Code)
+                : errors.OrderBy(e => e.Code),
+            ErrorListSortFields.Occurrences => descending
+                ? errors.OrderByDescending(e => e.Occurrences)
+                : errors.OrderBy(e => e.Occurrences),
+            ErrorListSortFields.FirstSeen => descending
+                ? errors.OrderByDescending(e => e.FirstSeen)
+                : errors.OrderBy(e => e.FirstSeen),
+            _ => descending
+                ? errors.OrderByDescending(e => e.LastSeen)
+                : errors.OrderBy(e => e.LastSeen)
+        };
+
+        return sorted.ThenByDescending(e => e.LastSeen).ThenBy(e => e.Code);
+    }
+
+    private static int PriorityRank(ErrorPriority priority) => priority switch
+    {
+        ErrorPriority.Alta => 3,
+        ErrorPriority.Media => 2,
+        _ => 1
+    };
+
+    private static int StatusRank(ErrorStatus status) => status switch
+    {
+        ErrorStatus.New => 1,
+        ErrorStatus.InReview => 2,
+        ErrorStatus.Postponed => 3,
+        ErrorStatus.Resolved => 4,
+        _ => 5
+    };
 
     private static List<ErrorItem> SeedData()
     {
