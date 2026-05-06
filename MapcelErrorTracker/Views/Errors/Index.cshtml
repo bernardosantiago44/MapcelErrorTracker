@@ -1,6 +1,6 @@
 @model MapcelErrorTracker.Models.ErrorListViewModel
 @using System.Globalization
-@using MapcelErrorTracker.Models
+
 @{
     ViewData["Title"] = "Errores";
 
@@ -128,379 +128,9 @@
         string.Equals(current, option.ToString(), StringComparison.OrdinalIgnoreCase);
 }
 
+<link rel="stylesheet" href="~/css/error-grid.css" asp-append-version="true" />
+
 <style>
-    .errors-page {
-        min-height: 100vh;
-        background: #f8fafc;
-        color: #0f172a;
-        padding: 24px;
-    }
-
-    .errors-shell {
-        max-width: 1440px;
-        margin: 0 auto;
-    }
-
-    .errors-header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-
-    .errors-title h1 {
-        margin: 0;
-        font-size: 24px;
-        line-height: 1.2;
-        font-weight: 700;
-    }
-
-    .errors-title p {
-        margin: 6px 0 0;
-        color: #64748b;
-        font-size: 14px;
-    }
-
-    .summary-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        border: 1px solid #cbd5e1;
-        border-radius: 999px;
-        background: #fff;
-        padding: 8px 12px;
-        color: #475569;
-        font-size: 13px;
-        white-space: nowrap;
-    }
-
-    .filter-panel,
-    .table-panel,
-    .state-panel {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        background: #fff;
-        box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
-    }
-
-    .filter-panel {
-        margin-bottom: 14px;
-        padding: 14px;
-    }
-
-    .filters-grid {
-        display: grid;
-        grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(140px, 1fr)) auto auto;
-        gap: 10px;
-        align-items: end;
-    }
-
-    .field label {
-        display: block;
-        margin-bottom: 5px;
-        color: #475569;
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .field input,
-    .field select {
-        width: 100%;
-        height: 36px;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        background: #fff;
-        padding: 0 10px;
-        color: #0f172a;
-        font-size: 14px;
-    }
-
-    .field input:focus,
-    .field select:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 0 3px rgb(37 99 235 / 0.14);
-        outline: none;
-    }
-
-    .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        min-height: 34px;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        padding: 0 11px;
-        color: #334155;
-        font-size: 13px;
-        font-weight: 700;
-        text-decoration: none;
-        white-space: nowrap;
-        cursor: pointer;
-    }
-
-    .btn svg {
-        width: 15px;
-        height: 15px;
-    }
-
-    .btn-primary {
-        background: #2563eb;
-        color: #fff;
-    }
-
-    .btn-secondary {
-        border-color: #cbd5e1;
-        background: #fff;
-    }
-
-    .btn-link {
-        border-color: #cbd5e1;
-        background: #f8fafc;
-    }
-
-    .btn-review {
-        background: #eff6ff;
-        color: #1d4ed8;
-    }
-
-    .btn-postpone {
-        background: #fffbeb;
-        color: #b45309;
-    }
-
-    .btn-resolve {
-        background: #ecfdf5;
-        color: #047857;
-    }
-
-    .btn[disabled] {
-        opacity: 0.42;
-        cursor: not-allowed;
-    }
-
-    .state-panel {
-        padding: 34px 20px;
-        text-align: center;
-    }
-
-    .state-panel h2 {
-        margin: 0 0 6px;
-        font-size: 18px;
-        font-weight: 700;
-    }
-
-    .state-panel p {
-        margin: 0;
-        color: #64748b;
-        font-size: 14px;
-    }
-
-    .state-error {
-        border-color: #fecaca;
-        background: #fef2f2;
-        color: #991b1b;
-    }
-
-    .state-loading {
-        margin-bottom: 14px;
-        padding: 12px 14px;
-        text-align: left;
-        color: #1d4ed8;
-        background: #eff6ff;
-        border-color: #bfdbfe;
-    }
-
-    .table-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        border-bottom: 1px solid #e2e8f0;
-        padding: 12px 14px;
-    }
-
-    .table-toolbar p {
-        margin: 0;
-        color: #64748b;
-        font-size: 13px;
-    }
-
-    .table-scroll {
-        overflow-x: auto;
-    }
-
-    .errors-table {
-        width: 100%;
-        min-width: 1120px;
-        border-collapse: collapse;
-    }
-
-    .errors-table th {
-        border-bottom: 1px solid #e2e8f0;
-        background: #f8fafc;
-        padding: 10px 12px;
-        color: #475569;
-        font-size: 12px;
-        font-weight: 800;
-        text-align: left;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-
-    .errors-table td {
-        border-bottom: 1px solid #f1f5f9;
-        padding: 10px 12px;
-        vertical-align: middle;
-        color: #334155;
-        font-size: 13px;
-    }
-
-    .errors-table tr:hover td {
-        background: #f8fafc;
-    }
-
-    .sort-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .sort-link svg {
-        width: 13px;
-        height: 13px;
-    }
-
-    .code-link {
-        color: #0f172a;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        font-weight: 800;
-        text-decoration: none;
-    }
-
-    .code-link:hover {
-        color: #2563eb;
-    }
-
-    .path-cell {
-        min-width: 170px;
-        color: #475569;
-    }
-
-    .path-cell span {
-        display: block;
-        color: #94a3b8;
-        font-size: 12px;
-    }
-
-    .message-cell {
-        max-width: 320px;
-        color: #334155;
-        line-height: 1.35;
-    }
-
-    .badge {
-        display: inline-flex;
-        align-items: center;
-        border-radius: 999px;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-weight: 800;
-        line-height: 1;
-        white-space: nowrap;
-    }
-
-    .status-new {
-        border: 1px solid #bfdbfe;
-        background: #eff6ff;
-        color: #1d4ed8;
-    }
-
-    .status-review {
-        border: 1px solid #c4b5fd;
-        background: #f5f3ff;
-        color: #6d28d9;
-    }
-
-    .status-postponed {
-        border: 1px solid #fde68a;
-        background: #fffbeb;
-        color: #b45309;
-    }
-
-    .status-resolved {
-        border: 1px solid #bbf7d0;
-        background: #f0fdf4;
-        color: #15803d;
-    }
-
-    .status-default,
-    .priority-low,
-    .occurrence-low {
-        border: 1px solid #e2e8f0;
-        background: #f8fafc;
-        color: #475569;
-    }
-
-    .priority-high,
-    .occurrence-high {
-        border: 1px solid #fecaca;
-        background: #fef2f2;
-        color: #b91c1c;
-    }
-
-    .priority-medium,
-    .occurrence-medium {
-        border: 1px solid #fde68a;
-        background: #fffbeb;
-        color: #b45309;
-    }
-
-    .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        min-width: 360px;
-    }
-
-    .actions form {
-        display: inline-flex;
-    }
-
-    .pager {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 12px 14px;
-    }
-
-    .pager-info {
-        color: #64748b;
-        font-size: 13px;
-    }
-
-    .pager-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-    }
-
     @@media (max-width: 1100px) {
         .filters-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -534,6 +164,8 @@
         .errors-table thead {
             display: none;
         }
+
+     
 
         .errors-table,
         .errors-table tbody,
@@ -592,98 +224,100 @@
 
 <div class="errors-page">
     <div class="errors-shell">
-        <header class="errors-header">
-            <div class="errors-title">
-                <h1>Errores activos</h1>
-                <p>Errores abiertos con actividad reciente y estado operativo.</p>
-            </div>
-
-            <div class="summary-pill" aria-label="Resumen de registros">
-                <i data-lucide="list-filter"></i>
-                <span><strong>@Model.FilteredRecords</strong> visibles</span>
-                <span><strong>@Model.TotalRecords</strong> totales</span>
-            </div>
-        </header>
-
-        <section class="filter-panel" aria-label="Filtros de errores">
-            <form method="get" asp-action="Index" id="errorFilters">
-                <input type="hidden" name="sortBy" value="@q.SortBy" />
-                <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
-                <input type="hidden" name="page" value="1" />
-
-                <div class="filters-grid">
-                    <div class="field">
-                        <label for="search">Busqueda</label>
-                        <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa, programa o mensaje" />
-                    </div>
-
-                    <div class="field">
-                        <label for="company">Empresa</label>
-                        <input id="company" name="company" type="search" value="@q.Company" list="company-options" placeholder="Todas" />
-                        <datalist id="company-options">
-                            @foreach (var company in Model.Companies)
-                            {
-                                <option value="@company"></option>
-                            }
-                        </datalist>
-                    </div>
-
-                    <div class="field">
-                        <label for="program">Programa</label>
-                        <input id="program" name="program" type="search" value="@q.Program" list="program-options" placeholder="Todos" />
-                        <datalist id="program-options">
-                            @foreach (var program in Model.Programs)
-                            {
-                                <option value="@program"></option>
-                            }
-                        </datalist>
-                    </div>
-
-                    <div class="field">
-                        <label for="status">Estado</label>
-                        <select id="status" name="status">
-                            <option value="">Activos</option>
-                            @foreach (var status in Enum.GetValues<ErrorStatus>())
-                            {
-                                <option value="@status" selected="@(Selected(q.Status, status) ? "selected" : null)">@StatusLabel(status)</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="priority">Prioridad</label>
-                        <select id="priority" name="priority">
-                            <option value="">Todas</option>
-                            @foreach (var priority in Enum.GetValues<ErrorPriority>())
-                            {
-                                <option value="@priority" selected="@(Selected(q.Priority, priority) ? "selected" : null)">@PriorityLabel(priority)</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="pageSize">Tamano</label>
-                        <select id="pageSize" name="pageSize">
-                            @foreach (var size in new[] { 10, 25, 50 })
-                            {
-                                <option value="@size" selected="@(Model.PageSize == size ? "selected" : null)">@size</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="actions">
-                        <button type="submit" class="btn btn-primary">
-                            <i data-lucide="search"></i>
-                            Aplicar
-                        </button>
-                        <a href="@BuildUrl(clearFilters: true, page: 1)" class="btn btn-secondary">
-                            <i data-lucide="x"></i>
-                            Limpiar
-                        </a>
-                    </div>
+        <div class="sticky-grid-controls">
+            <header class="errors-header">
+                <div class="errors-title">
+                    <h1>Errores del sistema</h1>
+                    <p>Errores abiertos con actividad reciente y estado operativo.</p>
                 </div>
-            </form>
-        </section>
+
+                <div class="summary-pill" aria-label="Resumen de registros">
+                    <i data-lucide="list-filter"></i>
+                    <span><strong>@Model.FilteredRecords</strong> visibles</span>
+                    <span><strong>@Model.TotalRecords</strong> totales</span>
+                </div>
+            </header>
+
+            <section class="filter-panel" aria-label="Filtros de errores">
+                <form method="get" asp-action="Index" id="errorFilters">
+                    <input type="hidden" name="sortBy" value="@q.SortBy" />
+                    <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
+                    <input type="hidden" name="page" value="1" />
+
+                    <div class="filters-grid">
+                        <div class="field">
+                            <label for="search">Busqueda</label>
+                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa, programa o mensaje" />
+                        </div>
+
+                        <div class="field">
+                            <label for="company">Empresa</label>
+                            <input id="company" name="company" type="search" value="@q.Company" list="company-options" placeholder="Todas" />
+                            <datalist id="company-options">
+                                @foreach (var company in Model.Companies)
+                                {
+                                    <option value="@company"></option>
+                                }
+                            </datalist>
+                        </div>
+
+                        <div class="field">
+                            <label for="program">Programa</label>
+                            <input id="program" name="program" type="search" value="@q.Program" list="program-options" placeholder="Todos" />
+                            <datalist id="program-options">
+                                @foreach (var program in Model.Programs)
+                                {
+                                    <option value="@program"></option>
+                                }
+                            </datalist>
+                        </div>
+
+                        <div class="field">
+                            <label for="status">Estado</label>
+                            <select id="status" name="status">
+                                <option value="">Todos</option>
+                                @foreach (var status in Enum.GetValues<ErrorStatus>())
+                                {
+                                    <option value="@status" selected="@(Selected(q.Status, status) ? "selected" : null)">@StatusLabel(status)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="field">
+                            <label for="priority">Prioridad</label>
+                            <select id="priority" name="priority">
+                                <option value="">Todas</option>
+                                @foreach (var priority in Enum.GetValues<ErrorPriority>())
+                                {
+                                    <option value="@priority" selected="@(Selected(q.Priority, priority) ? "selected" : null)">@PriorityLabel(priority)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="field">
+                            <label for="pageSize">Tamaño</label>
+                            <select id="pageSize" name="pageSize">
+                                @foreach (var size in new[] { 5, 10, 25, 50 })
+                                {
+                                    <option value="@size" selected="@(Model.PageSize == size ? "selected" : null)">@size</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i data-lucide="search"></i>
+                                Aplicar
+                            </button>
+                            <a href="@BuildUrl(clearFilters: true, page: 1)" class="btn btn-secondary">
+                                <i data-lucide="x"></i>
+                                Limpiar
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </div>
 
         <div id="loadingState" class="state-panel state-loading" hidden>
             <strong>Cargando errores...</strong>
@@ -719,9 +353,9 @@
             <section class="table-panel" aria-label="Lista de errores">
                 <div class="table-toolbar">
                     <p>
-                        Pagina <strong>@Model.CurrentPage</strong> de <strong>@Model.TotalPages</strong>
+                        Página <strong>@Model.CurrentPage</strong> de <strong>@Model.TotalPages</strong>
                         <span aria-hidden="true"> | </span>
-                        Tamano <strong>@Model.PageSize</strong>
+                        Tamaño <strong>@Model.PageSize</strong>
                     </p>
                     <p>
                         Mostrando <strong>@Model.FirstRecord-@Model.LastRecord</strong> de <strong>@Model.FilteredRecords</strong>
@@ -738,80 +372,78 @@
                             <tr>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.Status)" class="sort-link">
-                                        Status
+                                        Estatus
                                         <i data-lucide="@SortIcon(ErrorListSortFields.Status)"></i>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.Priority)" class="sort-link">
-                                        Priority
+                                        Prioridad
                                         <i data-lucide="@SortIcon(ErrorListSortFields.Priority)"></i>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.Company)" class="sort-link">
-                                        Company
+                                        Empresa
                                         <i data-lucide="@SortIcon(ErrorListSortFields.Company)"></i>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.ErrorCode)" class="sort-link">
-                                        Error Code
+                                        Código error
                                         <i data-lucide="@SortIcon(ErrorListSortFields.ErrorCode)"></i>
                                     </a>
                                 </th>
-                                <th>Program &gt; Module</th>
-                                <th>Short Message</th>
-                                <th>
-                                    <a href="@SortUrl(ErrorListSortFields.Occurrences)" class="sort-link">
-                                        # of Occurrences
-                                        <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i>
-                                    </a>
-                                </th>
+                                <th>Programa.Módulo</th>
+                                <th>Descripción</th>
+                                @* <th> *@
+                                @*     <a href="@SortUrl(ErrorListSortFields.Occurrences)" class="sort-link"> *@
+                                @*         Ocurrencias *@
+                                @*         <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i> *@
+                                @*     </a> *@
+                                @* </th> *@
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.FirstSeen)" class="sort-link">
-                                        First Seen
+                                        Primera vez
                                         <i data-lucide="@SortIcon(ErrorListSortFields.FirstSeen)"></i>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.LastSeen)" class="sort-link">
-                                        Last Seen
+                                        Última vez
                                         <i data-lucide="@SortIcon(ErrorListSortFields.LastSeen)"></i>
                                     </a>
                                 </th>
-                                <th>Quick Actions</th>
+                                <th>Acciones Rápidas</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var error in Model.Errors)
                             {
                                 <tr>
-                                    <td data-label="Status">
+                                    <td data-label="Estatus">
                                         <span class="badge @StatusClass(error.Status)">@StatusLabel(error.Status)</span>
                                     </td>
-                                    <td data-label="Priority">
+                                    <td data-label="Prioridad">
                                         <span class="badge @PriorityClass(error.Priority)">@PriorityLabel(error.Priority)</span>
                                     </td>
-                                    <td data-label="Company">@error.Company</td>
-                                    <td data-label="Error Code">
+                                    <td data-label="Empresa">@error.Company</td>
+                                    <td data-label="Código">
                                         <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
+                                        <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
                                     </td>
-                                    <td data-label="Program > Module" class="path-cell">
+                                    <td data-label="Programa.Módulo" class="path-cell">
                                         @error.Program
                                         <span>@error.Module</span>
                                     </td>
-                                    <td data-label="Short Message" class="message-cell">@ShortMessage(error.Description)</td>
-                                    <td data-label="# of Occurrences">
-                                        <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
-                                    </td>
-                                    <td data-label="First Seen">@FormatDate(error.FirstSeen)</td>
-                                    <td data-label="Last Seen">@FormatDate(error.LastSeen)</td>
-                                    <td data-label="Quick Actions">
+                                    <td data-label="Descripción" class="message-cell">@ShortMessage(error.Description)</td>
+                                    <td data-label="Primera vez">@FormatDate(error.FirstSeen)</td>
+                                    <td data-label="Última vez">@FormatDate(error.LastSeen)</td>
+                                    <td data-label="Acciones rápidas">
                                         <div class="actions">
                                             <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link">
                                                 <i data-lucide="eye"></i>
-                                                View details
+                                                Detalles
                                             </a>
 
                                             <form asp-action="UpdateStatusFromList" method="post">
@@ -819,8 +451,8 @@
                                                 <input type="hidden" name="status" value="InReview" />
                                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
                                                 <button type="submit" class="btn btn-review" disabled="@(error.Status == ErrorStatus.InReview)">
-                                                    <i data-lucide="clipboard-search"></i>
-                                                    Under review
+                                                    <i data-lucide="search-code"></i>
+                                                    En revisión
                                                 </button>
                                             </form>
 
@@ -830,7 +462,7 @@
                                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
                                                 <button type="submit" class="btn btn-postpone" disabled="@(error.Status == ErrorStatus.Postponed)">
                                                     <i data-lucide="clock-3"></i>
-                                                    Postpone
+                                                    Posponer
                                                 </button>
                                             </form>
 
@@ -840,7 +472,7 @@
                                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
                                                 <button type="submit" class="btn btn-resolve" disabled="@(error.Status == ErrorStatus.Resolved)">
                                                     <i data-lucide="check-check"></i>
-                                                    Resolve
+                                                    Resuelto
                                                 </button>
                                             </form>
                                         </div>
@@ -853,35 +485,35 @@
 
                 <nav class="pager" aria-label="Paginacion">
                     <div class="pager-info">
-                        Pagina @Model.CurrentPage de @Model.TotalPages
+                        Página @Model.CurrentPage de @Model.TotalPages
                     </div>
                     <div class="pager-actions">
                         @if (Model.HasPreviousPage)
                         {
                             <a href="@BuildUrl(page: Model.CurrentPage - 1)" class="btn btn-secondary">
                                 <i data-lucide="chevron-left"></i>
-                                Previous
+                                Anterior
                             </a>
                         }
                         else
                         {
                             <span class="btn btn-secondary" aria-disabled="true">
                                 <i data-lucide="chevron-left"></i>
-                                Previous
+                                Anterior
                             </span>
                         }
 
                         @if (Model.HasNextPage)
                         {
                             <a href="@BuildUrl(page: Model.CurrentPage + 1)" class="btn btn-secondary">
-                                Next
+                                Siguiente
                                 <i data-lucide="chevron-right"></i>
                             </a>
                         }
                         else
                         {
                             <span class="btn btn-secondary" aria-disabled="true">
-                                Next
+                                Siguiente
                                 <i data-lucide="chevron-right"></i>
                             </span>
                         }

@@ -4,14 +4,9 @@ namespace MapcelErrorTracker.Services;
 
 public class ErrorStore
 {
-    private readonly List<ErrorItem> _errors;
+    private readonly List<ErrorItem> _errors = SeedData();
 
-    public ErrorStore()
-    {
-        _errors = SeedData();
-    }
-
-    public List<ErrorItem> GetAll() => _errors;
+    public List<ErrorItem> GetAll() => this._errors;
 
     public ErrorListViewModel GetList(ErrorListQuery query)
     {
@@ -20,7 +15,7 @@ public class ErrorStore
         query.Page = query.SafePage;
         query.PageSize = query.SafePageSize;
 
-        var filtered = _errors.AsEnumerable();
+        var filtered = this._errors.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
