@@ -1,717 +1,573 @@
-@model List<MapcelErrorTracker.Models.ErrorItem>
-@using MapcelErrorTracker.Models
+@model MapcelErrorTracker.Models.ErrorListViewModel
+@using System.Globalization
+
 @{
-ViewData["Title"] = "Errores";
+    ViewData["Title"] = "Errores";
 
-var companies = ViewBag.Companies as List<string> ?? [];
-var programs = ViewBag.Programs as List<string> ?? [];
-var modules = ViewBag.Modules as List<string> ?? [];
-var assignees = ViewBag.Assignees as List<string> ?? [];
+    var q = Model.Query;
+    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString.ToString();
+    var currentSort = q.SortBy;
+    var currentDirection = q.SafeSortDirection;
 
-int activeCount = ViewBag.ActiveCount ?? 0;
-int newTodayCount = ViewBag.NewTodayCount ?? 0;
-int highPriorityCount = ViewBag.HighPriorityCount ?? 0;
-int unassignedCount = ViewBag.UnassignedCount ?? 0;
-int postponedCount = ViewBag.PostponedCount ?? 0;
-int recurrentCount = ViewBag.RecurrentCount ?? 0;
-int silencedCount = ViewBag.SilencedCount ?? 0;
+    void AddQueryValue(List<string> values, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            values.Add($"{name}={Uri.EscapeDataString(value)}");
+    }
 
-string? selCompany = ViewBag.SelectedCompany;
-string? selProgram = ViewBag.SelectedProgram;
-string? selModule = ViewBag.SelectedModule;
-string? selStatus = ViewBag.SelectedStatus;
-string? selPriority = ViewBag.SelectedPriority;
-string? selAssignee = ViewBag.SelectedAssignee;
-string? search = ViewBag.Search;
-bool hideResolved = ViewBag.HideResolved ?? false;
-bool highPriorityOnly = ViewBag.HighPriorityOnly ?? false;
+    string BuildUrl(
+        string? sortBy = null,
+        string? sortDirection = null,
+        int? page = null,
+        int? pageSize = null,
+        bool clearFilters = false)
+    {
+        var values = new List<string>();
 
-bool hasActiveFilters = !string.IsNullOrEmpty(selCompany) || !string.IsNullOrEmpty(selProgram) ||
-!string.IsNullOrEmpty(selModule) || !string.IsNullOrEmpty(selStatus) ||
-!string.IsNullOrEmpty(selPriority) || !string.IsNullOrEmpty(selAssignee) ||
-!string.IsNullOrEmpty(search) || hideResolved || highPriorityOnly;
+        if (!clearFilters)
+        {
+            AddQueryValue(values, "search", q.Search);
+            AddQueryValue(values, "company", q.Company);
+            AddQueryValue(values, "program", q.Program);
+            AddQueryValue(values, "status", q.Status);
+            AddQueryValue(values, "priority", q.Priority);
+        }
 
-string accentBg = "bg-emerald-600";
-string accentBgSoft = "bg-emerald-50";
-string accentBorder = "border-emerald-200";
-string accentText = "text-emerald-700";
-string accentHoverText = "hover:text-emerald-700";
-string accentHoverBg = "hover:bg-emerald-700";
-string accentHoverSoft = "hover:bg-emerald-100";
-string accentRing = "ring-emerald-200";
-string accentFocus = "focus:border-emerald-300 focus:outline-none focus:ring-4 focus:ring-emerald-100";
+        AddQueryValue(values, "sortBy", sortBy ?? currentSort);
+        AddQueryValue(values, "sortDirection", sortDirection ?? currentDirection);
+        values.Add($"page={(page ?? Model.CurrentPage).ToString(CultureInfo.InvariantCulture)}");
+        values.Add($"pageSize={(pageSize ?? Model.PageSize).ToString(CultureInfo.InvariantCulture)}");
 
-string roundedCard = "rounded-2xl";
-string roundedPill = "rounded-full";
-string roundedButton = "rounded-xl";
-string shadowSoft = "shadow-sm";
-string shadowHover = "hover:shadow-md";
-string shadowElevated = "shadow-md";
-string shadowInset = "shadow-inner shadow-slate-100";
-string cardBorder = "border border-slate-200";
-string controlHeight = "h-12";
-string chipPadding = "px-3 py-1.5";
-string cardPadding = "px-5 py-4";
-string kpiPadding = "p-3";
-string kpiIconSize = "h-9 w-9";
-string dangerHover = "hover:bg-red-50 hover:text-red-600 hover:ring-red-200";
-string filterChipClass = $"inline-flex items-center gap-1.5 {roundedPill} {chipPadding} text-xs font-semibold {accentBgSoft} {accentText} ring-1 {accentRing} {shadowSoft} transition {dangerHover}";
-string kpiBaseClass = $"group relative overflow-hidden {roundedCard} {cardBorder} bg-white {kpiPadding} {shadowSoft} transition hover:-translate-y-0.5 hover:border-slate-300 {shadowHover}";
-string kpiActiveClass = $"{accentBgSoft} {accentBorder} {shadowElevated}";
+        return "/Errors" + (values.Count == 0 ? string.Empty : "?" + string.Join("&", values));
+    }
 
-bool isActiveKpi = hideResolved;
-bool isHighPriorityKpi = string.Equals(selPriority, "Alta", StringComparison.OrdinalIgnoreCase);
-bool isPostponedKpi = string.Equals(selStatus, nameof(ErrorStatus.Postponed), StringComparison.OrdinalIgnoreCase);
+    bool IsCurrentSort(string sortBy) =>
+        string.Equals(currentSort, sortBy, StringComparison.OrdinalIgnoreCase);
 
-string BuildFilterUrl(string? excludeKey = null, string? toggleKey = null)
-{
-var qs = new List<string>();
+    bool DefaultsDescending(string sortBy) =>
+        sortBy is ErrorListSortFields.Priority or
+            ErrorListSortFields.Occurrences or
+            ErrorListSortFields.FirstSeen or
+            ErrorListSortFields.LastSeen;
 
-if (excludeKey != "search" && !string.IsNullOrEmpty(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
-if (excludeKey != "company" && !string.IsNullOrEmpty(selCompany)) qs.Add($"company={Uri.EscapeDataString(selCompany)}");
-if (excludeKey != "program" && !string.IsNullOrEmpty(selProgram)) qs.Add($"program={Uri.EscapeDataString(selProgram)}");
-if (excludeKey != "module" && !string.IsNullOrEmpty(selModule)) qs.Add($"module={Uri.EscapeDataString(selModule)}");
-if (excludeKey != "status" && !string.IsNullOrEmpty(selStatus)) qs.Add($"status={Uri.EscapeDataString(selStatus)}");
-if (excludeKey != "priority" && !string.IsNullOrEmpty(selPriority)) qs.Add($"priority={Uri.EscapeDataString(selPriority)}");
-if (excludeKey != "assignee" && !string.IsNullOrEmpty(selAssignee)) qs.Add($"assignee={Uri.EscapeDataString(selAssignee)}");
+    string NextSortDirection(string sortBy)
+    {
+        if (!IsCurrentSort(sortBy))
+            return DefaultsDescending(sortBy) ? "desc" : "asc";
 
-bool hr = toggleKey == "hideResolved" ? !hideResolved : hideResolved;
-bool hp = toggleKey == "highPriorityOnly" ? !highPriorityOnly : highPriorityOnly;
+        return string.Equals(currentDirection, "asc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
+    }
 
-if (excludeKey != "hideResolved" && hr) qs.Add("hideResolved=true");
-if (excludeKey != "highPriorityOnly" && hp) qs.Add("highPriorityOnly=true");
+    string SortUrl(string sortBy) => BuildUrl(sortBy: sortBy, sortDirection: NextSortDirection(sortBy), page: 1);
 
-return "/Errors" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
-}
+    string SortIcon(string sortBy)
+    {
+        if (!IsCurrentSort(sortBy))
+            return "arrow-up-down";
+
+        return string.Equals(currentDirection, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "arrow-up"
+            : "arrow-down";
+    }
 }
 
 @functions {
-static string PriorityBadgeCss(ErrorPriority p) => p switch
-{
-ErrorPriority.Alta => "border border-red-200 bg-red-50 text-red-700",
-ErrorPriority.Media => "border border-amber-200 bg-amber-50 text-amber-700",
-_ => "border border-slate-200 bg-slate-50 text-slate-600"
-};
+    static string PriorityLabel(ErrorPriority priority) => priority switch
+    {
+        ErrorPriority.Alta => "Alta",
+        ErrorPriority.Media => "Media",
+        ErrorPriority.Baja => "Baja",
+        _ => priority.ToString()
+    };
 
-static string PriorityDotCss(ErrorPriority p) => p switch
-{
-ErrorPriority.Alta => "bg-red-500",
-ErrorPriority.Media => "bg-amber-500",
-_ => "bg-slate-400"
-};
+    static string PriorityClass(ErrorPriority priority) => priority switch
+    {
+        ErrorPriority.Alta => "priority-high",
+        ErrorPriority.Media => "priority-medium",
+        _ => "priority-low"
+    };
 
-static string PriorityLabel(ErrorPriority p) => p switch
-{
-ErrorPriority.Alta => "Alta",
-ErrorPriority.Media => "Media",
-_ => "Baja"
-};
+    static string StatusLabel(ErrorStatus status) => status switch
+    {
+        ErrorStatus.New => "Nuevo",
+        ErrorStatus.InReview => "En revision",
+        ErrorStatus.Postponed => "Pospuesto",
+        ErrorStatus.Resolved => "Resuelto",
+        _ => status.ToString()
+    };
 
-static string StatusBadgeCss(ErrorStatus s) => s switch
-{
-ErrorStatus.New => "border border-emerald-200 bg-emerald-50 text-emerald-700",
-ErrorStatus.InReview => "border border-blue-200 bg-blue-50 text-blue-700",
-ErrorStatus.Postponed => "border border-amber-200 bg-amber-50 text-amber-700",
-ErrorStatus.Resolved => "border border-slate-200 bg-slate-100 text-slate-600",
-_ => "border border-slate-200 bg-slate-50 text-slate-600"
-};
+    static string StatusClass(ErrorStatus status) => status switch
+    {
+        ErrorStatus.New => "status-new",
+        ErrorStatus.InReview => "status-review",
+        ErrorStatus.Postponed => "status-postponed",
+        ErrorStatus.Resolved => "status-resolved",
+        _ => "status-default"
+    };
 
-static string StatusLabel(ErrorStatus s) => s switch
-{
-ErrorStatus.New => "Nuevo",
-ErrorStatus.InReview => "En revisión",
-ErrorStatus.Postponed => "Pospuesto",
-ErrorStatus.Resolved => "Resuelto",
-_ => s.ToString()
-};
+    static string OccurrenceClass(int occurrences) => occurrences switch
+    {
+        >= 100 => "occurrence-high",
+        >= 25 => "occurrence-medium",
+        _ => "occurrence-low"
+    };
 
-static string AgeLabel(DateTime firstSeen)
-{
-var days = (DateTime.UtcNow - firstSeen).TotalDays;
-if (days < 1) return "Nuevo hoy";
-if (days < 2) return "1 día";
-if (days < 7) return $"{(int)days} días";
-if (days < 14) return "1 semana";
-if (days < 30) return $"{(int)(days / 7)} semanas";
-return $"{(int)(days / 30)} mes{((int)(days / 30) > 1 ? "es" : "")}";
-}
+    static string FormatDate(DateTime date) =>
+        date.ToString("dd MMM yyyy HH:mm", CultureInfo.CurrentCulture);
 
-static string AgeBadgeCss(DateTime firstSeen)
-{
-var days = (DateTime.UtcNow - firstSeen).TotalDays;
-if (days < 1) return "bg-emerald-50 text-emerald-700";
-if (days < 3) return "bg-blue-50 text-blue-700";
-if (days < 7) return "bg-amber-50 text-amber-700";
-return "bg-rose-50 text-rose-700";
-}
+    static string RelativeDate(DateTime date)
+    {
+        var difference = DateTime.UtcNow - date;
 
-static string RelativeTime(DateTime dt)
-{
-var diff = DateTime.UtcNow - dt;
-if (diff.TotalMinutes < 1) return "hace un momento";
-if (diff.TotalMinutes < 60) return $"hace {(int)diff.TotalMinutes} min";
-if (diff.TotalHours < 24) return $"hace {(int)diff.TotalHours} h";
-if (diff.TotalDays < 2) return "hace 1 día";
-return $"hace {(int)diff.TotalDays} días";
-}
+        if (difference.TotalSeconds < 60)
+            return "hace un momento";
 
-static string TruncateText(string text, int maxLen)
-{
-if (string.IsNullOrWhiteSpace(text) || text.Length <= maxLen) return text;
-return text[..maxLen] + "…";
-}
-
-static string KpiHrefOrFallback(string? url) => string.IsNullOrWhiteSpace(url) ? "javascript:void(0)" : url;
-}
-
-<div class="min-h-screen bg-slate-50">
-    <!-- Header -->
-    <div class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-        <div class="mx-auto max-w-[1600px] px-6 py-4">
-            <div class="flex flex-wrap items-center gap-4">
-                <div class="mr-2 flex min-w-[220px] items-center gap-3">
-                    <div class="flex h-11 w-11 items-center justify-center @roundedCard bg-emerald-500/10 text-emerald-600 ring-1 @accentRing">
-                        <i data-lucide="triangle-alert" class="h-5 w-5"></i>
-                    </div>
-
-                    <div>
-                        <h1 class="text-xl font-semibold tracking-tight text-slate-900">Errores</h1>
-                        <p class="text-xs text-slate-500">
-                            <span class="font-semibold text-slate-700">@activeCount activos</span>
-                            <span class="mx-1.5 text-slate-300">•</span>
-                            @Model.Count(e => e.Status == ErrorStatus.InReview) en revisión
-                            <span class="mx-1.5 text-slate-300">•</span>
-                            @Model.Count(e => e.Status == ErrorStatus.Postponed) pospuestos
-                        </p>
-                    </div>
-                </div>
-
-                <form method="get" asp-action="Index" id="mainSearchForm" class="min-w-[320px] max-w-3xl flex-1">
-                    @if (!string.IsNullOrEmpty(selCompany)) { <input type="hidden" name="company" value="@selCompany" /> }
-                    @if (!string.IsNullOrEmpty(selProgram)) { <input type="hidden" name="program" value="@selProgram" /> }
-                    @if (!string.IsNullOrEmpty(selModule)) { <input type="hidden" name="module" value="@selModule" /> }
-                    @if (!string.IsNullOrEmpty(selStatus)) { <input type="hidden" name="status" value="@selStatus" /> }
-                    @if (!string.IsNullOrEmpty(selPriority)) { <input type="hidden" name="priority" value="@selPriority" /> }
-                    @if (!string.IsNullOrEmpty(selAssignee)) { <input type="hidden" name="assignee" value="@selAssignee" /> }
-                    @if (hideResolved) { <input type="hidden" name="hideResolved" value="true" /> }
-                    @if (highPriorityOnly) { <input type="hidden" name="highPriorityOnly" value="true" /> }
-
-                    <div class="relative">
-                        <i data-lucide="search" class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text"
-                               name="search"
-                               value="@search"
-                               placeholder="Buscar por código, módulo, descripción..."
-                               class="@controlHeight w-full @roundedCard border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 @shadowInset placeholder:text-slate-400 @accentFocus" />
-                    </div>
-                </form>
-
-                <button type="button"
-                        onclick="toggleFilterPanel()"
-                        class="inline-flex @controlHeight items-center gap-2 @roundedCard border @accentBorder @accentBgSoft px-4 text-sm font-semibold @accentText @shadowSoft transition @accentHoverSoft xl:hidden">
-                    <i data-lucide="sliders-horizontal" class="h-4 w-4"></i>
-                    Filtros
-                    @if (hasActiveFilters)
-                    {
-                    <span class="inline-flex h-5 min-w-5 items-center justify-center @roundedPill @accentBg px-1.5 text-[10px] font-bold text-white">!</span>
-                    }
-                </button>
-            </div>
-
-            <div class="mt-4 flex flex-wrap items-center gap-2">
-                <a href="@BuildFilterUrl(toggleKey: "hideResolved")"
-                   class="inline-flex items-center gap-2 @roundedPill @chipPadding text-xs font-semibold ring-1 @shadowSoft transition @(hideResolved ? "bg-slate-900 text-white ring-slate-900" : $"{accentBgSoft} {accentText} {accentRing} {accentHoverSoft}")">
-                    <i data-lucide="eye-off" class="h-3.5 w-3.5"></i>
-                    Ocultar resueltos
-                </a>
-
-                <a href="@BuildFilterUrl(toggleKey: "highPriorityOnly")"
-                   class="inline-flex items-center gap-2 @roundedPill @chipPadding text-xs font-semibold ring-1 @shadowSoft transition @(highPriorityOnly ? "bg-red-600 text-white ring-red-600" : "bg-red-50 text-red-700 ring-red-200 hover:bg-red-100")">
-                    <i data-lucide="badge-alert" class="h-3.5 w-3.5"></i>
-                    Prioridad alta
-                </a>
-
-                @if (hasActiveFilters)
-                {
-                <a asp-action="Index"
-                   class="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:text-red-600">
-                    <i data-lucide="x" class="h-3.5 w-3.5"></i>
-                    Borrar filtros
-                </a>
-                }
-            </div>
-        </div>
-    </div>
-
-    <div class="mx-auto max-w-[1600px] px-6 py-6">
-        <!-- KPI cards -->
-        <div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
-            <a href="@KpiHrefOrFallback(Url.Action("Index", new { hideResolved = true }))"
-               class="@($"{kpiBaseClass} {(isActiveKpi ? kpiActiveClass : string.Empty)}")">
-                <div class="absolute inset-x-0 top-0 h-1 bg-emerald-500"></div>
-                <div class="mb-2 flex items-center justify-between">
-                    <div class="flex @kpiIconSize items-center justify-center @roundedButton bg-slate-50 text-slate-600 ring-1 ring-slate-200">
-                        <i data-lucide="circle-alert" class="h-4 w-4"></i>
-                    </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Activos</span>
-                </div>
-                <div class="flex items-end justify-between">
-                    <p class="text-2xl font-semibold tracking-tight text-slate-900">@activeCount</p>
-                    <span class="text-xs text-slate-400 transition group-hover:text-slate-600">Ver</span>
-                </div>
-            </a>
-
-            <a href="javascript:void(0)"
-               class="@kpiBaseClass">
-                <div class="absolute inset-x-0 top-0 h-1 bg-sky-500"></div>
-                <div class="mb-2 flex items-center justify-between">
-                    <div class="flex @kpiIconSize items-center justify-center @roundedButton bg-slate-50 text-slate-600 ring-1 ring-slate-200">
-                        <i data-lucide="sparkles" class="h-4 w-4"></i>
-                    </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Nuevos hoy</span>
-                </div>
-                <div class="flex items-end justify-between">
-                    <p class="text-2xl font-semibold tracking-tight text-slate-900">@newTodayCount</p>
-                    <span class="text-xs text-slate-400">Ver</span>
-                </div>
-            </a>
-
-            <a href="@KpiHrefOrFallback(Url.Action("Index", new { priority = "Alta", hideResolved = true }))"
-               class="@($"{kpiBaseClass} {(isHighPriorityKpi ? kpiActiveClass : string.Empty)}")">
-                <div class="absolute inset-x-0 top-0 h-1 bg-red-500"></div>
-                <div class="mb-2 flex items-center justify-between">
-                    <div class="flex @kpiIconSize items-center justify-center @roundedButton bg-slate-50 text-slate-600 ring-1 ring-slate-200">
-                        <i data-lucide="triangle-alert" class="h-4 w-4"></i>
-                    </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Alta prioridad</span>
-                </div>
-                <div class="flex items-end justify-between">
-                    <p class="text-2xl font-semibold tracking-tight text-red-600">@highPriorityCount</p>
-                    <span class="text-xs text-slate-400 transition group-hover:text-slate-600">Ver</span>
-                </div>
-            </a>
-
-            <a href="javascript:void(0)"
-               class="@kpiBaseClass">
-                <div class="absolute inset-x-0 top-0 h-1 bg-orange-500"></div>
-                <div class="mb-2 flex items-center justify-between">
-                    <div class="flex @kpiIconSize items-center justify-center @roundedButton bg-slate-50 text-slate-600 ring-1 ring-slate-200">
-                        <i data-lucide="user-round-x" class="h-4 w-4"></i>
-                    </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Sin asignar</span>
-                </div>
-                <div class="flex items-end justify-between">
-                    <p class="text-2xl font-semibold tracking-tight text-slate-900">@unassignedCount</p>
-                    <span class="text-xs text-slate-400">Ver</span>
-                </div>
-            </a>
-
-            <a href="@KpiHrefOrFallback(Url.Action("Index", new { status = "Postponed" }))"
-               class="@($"{kpiBaseClass} {(isPostponedKpi ? kpiActiveClass : string.Empty)}")">
-                <div class="absolute inset-x-0 top-0 h-1 bg-amber-500"></div>
-                <div class="mb-2 flex items-center justify-between">
-                    <div class="flex @kpiIconSize items-center justify-center @roundedButton bg-slate-50 text-slate-600 ring-1 ring-slate-200">
-                        <i data-lucide="clock-3" class="h-4 w-4"></i>
-                    </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Pospuestos</span>
-                </div>
-                <div class="flex items-end justify-between">
-                    <p class="text-2xl font-semibold tracking-tight text-slate-900">@postponedCount</p>
-                    <span class="text-xs text-slate-400 transition group-hover:text-slate-600">Ver</span>
-                </div>
-            </a>
-
-            <a href="javascript:void(0)"
-               class="@kpiBaseClass">
-                <div class="absolute inset-x-0 top-0 h-1 bg-violet-500"></div>
-                <div class="mb-2 flex items-center justify-between">
-                    <div class="flex @kpiIconSize items-center justify-center @roundedButton bg-slate-50 text-slate-600 ring-1 ring-slate-200">
-                        <i data-lucide="repeat-2" class="h-4 w-4"></i>
-                    </div>
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Recurrentes</span>
-                </div>
-                <div class="flex items-end justify-between">
-                    <p class="text-2xl font-semibold tracking-tight text-slate-900">@recurrentCount</p>
-                    <span class="text-xs text-slate-400">Ver</span>
-                </div>
-            </a>
-        </div>
-
-        @if (hasActiveFilters)
+        if (difference.TotalMinutes < 60)
         {
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-            <span class="mr-1 text-xs font-medium text-slate-500">Filtros activos:</span>
-
-            @if (!string.IsNullOrEmpty(search))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "search")"
-               class="@filterChipClass">
-                Búsqueda: "@search"
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (!string.IsNullOrEmpty(selCompany))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "company")"
-               class="@filterChipClass">
-                Empresa: @selCompany
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (!string.IsNullOrEmpty(selProgram))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "program")"
-               class="@filterChipClass">
-                Programa: @selProgram
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (!string.IsNullOrEmpty(selModule))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "module")"
-               class="@filterChipClass">
-                Módulo: @selModule
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (!string.IsNullOrEmpty(selStatus) && Enum.TryParse<ErrorStatus>(selStatus, out var chipStatus))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "status")"
-               class="@filterChipClass">
-                Estado: @StatusLabel(chipStatus)
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (!string.IsNullOrEmpty(selPriority))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "priority")"
-               class="@filterChipClass">
-                Prioridad: @selPriority
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (!string.IsNullOrEmpty(selAssignee))
-            {
-            <a href="@BuildFilterUrl(excludeKey: "assignee")"
-               class="@filterChipClass">
-                Responsable: @selAssignee
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (hideResolved)
-            {
-            <a href="@BuildFilterUrl(excludeKey: "hideResolved")"
-               class="@filterChipClass">
-                Resueltos ocultos
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-
-            @if (highPriorityOnly)
-            {
-            <a href="@BuildFilterUrl(excludeKey: "highPriorityOnly")"
-               class="@filterChipClass">
-                Solo alta prioridad
-                <i data-lucide="x" class="h-3 w-3"></i>
-            </a>
-            }
-        </div>
+            var minutes = Math.Max(1, (int)difference.TotalMinutes);
+            return $"hace {minutes} minuto{(minutes == 1 ? string.Empty : "s")}";
         }
 
-        <div class="grid gap-6 xl:grid-cols-[290px_minmax(0,1fr)]">
-            <!-- Sidebar filtros -->
-            <aside id="filterPanel" class="hidden xl:block">
-                <div class="sticky top-[118px] @roundedCard border border-slate-200 bg-white p-5 @shadowSoft">
-                    <div class="mb-5">
-                        <h3 class="text-sm font-semibold text-slate-900">Filtros avanzados</h3>
-                        <p class="mt-1 text-xs text-slate-500">Refina la bandeja sin perder contexto</p>
-                    </div>
+        if (difference.TotalHours < 24)
+        {
+            var hours = Math.Max(1, (int)difference.TotalHours);
+            return $"hace {hours} hora{(hours == 1 ? string.Empty : "s")}";
+        }
 
-                    <form method="get" asp-action="Index" class="space-y-4">
-                        @if (!string.IsNullOrEmpty(search)) { <input type="hidden" name="search" value="@search" /> }
-                        @if (hideResolved) { <input type="hidden" name="hideResolved" value="true" /> }
-                        @if (highPriorityOnly) { <input type="hidden" name="highPriorityOnly" value="true" /> }
+        if (difference.TotalDays < 30)
+        {
+            var days = Math.Max(1, (int)difference.TotalDays);
+            return $"hace {days} día{(days == 1 ? string.Empty : "s")}";
+        }
 
-                        <div>
-                            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Empresa</label>
-                            <select name="company" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
+        if (difference.TotalDays < 365)
+        {
+            var months = Math.Max(1, (int)(difference.TotalDays / 30));
+            return $"hace {months} mes{(months == 1 ? string.Empty : "es")}";
+        }
+
+        var years = Math.Max(1, (int)(difference.TotalDays / 365));
+        return $"hace {years} año{(years == 1 ? string.Empty : "s")}";
+    }
+
+    static string ShortMessage(string message)
+    {
+        const int maxLength = 130;
+        if (string.IsNullOrWhiteSpace(message) || message.Length <= maxLength)
+            return message;
+
+        return message[..maxLength] + "...";
+    }
+
+    static bool Selected(string? current, object option) =>
+        string.Equals(current, option.ToString(), StringComparison.OrdinalIgnoreCase);
+}
+
+<link rel="stylesheet" href="~/css/error-grid.css" asp-append-version="true" />
+
+<style>
+    @@media (max-width: 1100px) {
+        .filters-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .errors-page {
+            padding: 14px;
+        }
+
+        .errors-header,
+        .table-toolbar,
+        .pager {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .table-scroll {
+            overflow: visible;
+        }
+
+        .errors-table {
+            min-width: 0;
+        }
+
+        .errors-table thead {
+            display: none;
+        }
+
+     
+
+        .errors-table,
+        .errors-table tbody,
+        .errors-table tr,
+        .errors-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .errors-table tbody {
+            padding: 10px;
+            background: #f8fafc;
+        }
+
+        .errors-table tr {
+            margin-bottom: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .errors-table td {
+            display: grid;
+            grid-template-columns: 116px minmax(0, 1fr);
+            gap: 10px;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 10px;
+        }
+
+        .errors-table td::before {
+            content: attr(data-label);
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .errors-table td:last-child {
+            border-bottom: 0;
+        }
+
+        .message-cell,
+        .path-cell {
+            max-width: none;
+            min-width: 0;
+        }
+
+        .actions {
+            min-width: 0;
+        }
+
+        .actions .btn {
+            flex: 1 1 130px;
+        }
+
+        .row-actions {
+            display: flex;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .row-actions .btn,
+        .status-dropdown-form,
+        .status-dropdown-trigger {
+            flex: 1 1 0;
+        }
+    }
+</style>
+
+<div class="errors-page">
+    <div class="errors-shell">
+        <div class="sticky-grid-controls">
+            <header class="errors-header">
+                <div class="errors-title">
+                    <h1>Errores del sistema</h1>
+                    <p>Errores abiertos con actividad reciente y estado operativo.</p>
+                </div>
+
+                <div class="summary-pill" aria-label="Resumen de registros">
+                    <i data-lucide="list-filter"></i>
+                    <span><strong>@Model.FilteredRecords</strong> visibles</span>
+                    <span><strong>@Model.TotalRecords</strong> totales</span>
+                </div>
+            </header>
+
+            <section class="filter-panel" aria-label="Filtros de errores">
+                <form method="get" asp-action="Index" id="errorFilters">
+                    <input type="hidden" name="sortBy" value="@q.SortBy" />
+                    <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
+                    <input type="hidden" name="page" value="1" />
+
+                    <div class="filters-grid">
+                        <div class="field">
+                            <label for="search">Búsqueda</label>
+                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa o mensaje" />
+                        </div>
+
+                        <div class="field">
+                            <label for="company">Empresa</label>
+                            <input id="company" name="company" type="search" value="@q.Company" list="company-options" placeholder="Todas" />
+                            <datalist id="company-options">
+                                @foreach (var company in Model.Companies)
+                                {
+                                    <option value="@company"></option>
+                                }
+                            </datalist>
+                        </div>
+
+                        <div class="field">
+                            <label for="program">Programa</label>
+                            <input id="program" name="program" type="search" value="@q.Program" list="program-options" placeholder="Todos" />
+                            <datalist id="program-options">
+                                @foreach (var program in Model.Programs)
+                                {
+                                    <option value="@program"></option>
+                                }
+                            </datalist>
+                        </div>
+
+                        <div class="field">
+                            <label for="status">Estado</label>
+                            <select id="status" name="status">
+                                <option value="">Todos</option>
+                                @foreach (var status in Enum.GetValues<ErrorStatus>())
+                                {
+                                    <option value="@status" selected="@(Selected(q.Status, status) ? "selected" : null)">@StatusLabel(status)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="field">
+                            <label for="priority">Prioridad</label>
+                            <select id="priority" name="priority">
                                 <option value="">Todas</option>
-                                @foreach (var c in companies)
+                                @foreach (var priority in Enum.GetValues<ErrorPriority>())
                                 {
-                                <option value="@c" selected="@(selCompany == c ? "selected" : null)">@c</option>
+                                    <option value="@priority" selected="@(Selected(q.Priority, priority) ? "selected" : null)">@PriorityLabel(priority)</option>
                                 }
                             </select>
                         </div>
 
-                        <div>
-                            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Programa</label>
-                            <select name="program" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
-                                <option value="">Todos</option>
-                                @foreach (var p in programs)
+                        <div class="field">
+                            <label for="pageSize">Tamaño</label>
+                            <select id="pageSize" name="pageSize">
+                                @foreach (var size in new[] { 5, 10, 25, 50 })
                                 {
-                                <option value="@p" selected="@(selProgram == p ? "selected" : null)">@p</option>
+                                    <option value="@size" selected="@(Model.PageSize == size ? "selected" : null)">@size</option>
                                 }
                             </select>
                         </div>
 
-                        <div>
-                            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Módulo</label>
-                            <select name="module" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
-                                <option value="">Todos</option>
-                                @foreach (var m in modules)
-                                {
-                                <option value="@m" selected="@(selModule == m ? "selected" : null)">@m</option>
-                                }
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Prioridad</label>
-                            <select name="priority" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
-                                <option value="">Todas</option>
-                                @foreach (var p in Enum.GetValues<ErrorPriority>())
-                                {
-                                <option value="@p" selected="@(selPriority == p.ToString() ? "selected" : null)">@PriorityLabel(p)</option>
-                                }
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Estado</label>
-                            <select name="status" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
-                                <option value="">Todos</option>
-                                @foreach (var s in Enum.GetValues<ErrorStatus>())
-                                {
-                                <option value="@s" selected="@(selStatus == s.ToString() ? "selected" : null)">@StatusLabel(s)</option>
-                                }
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Responsable</label>
-                            <select name="assignee" class="h-11 w-full @roundedCard border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 @accentFocus">
-                                <option value="">Todos</option>
-                                @foreach (var a in assignees)
-                                {
-                                <option value="@a" selected="@(selAssignee == a ? "selected" : null)">@a</option>
-                                }
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2 pt-2">
-                            <button type="submit"
-                                    class="inline-flex h-11 items-center justify-center @roundedButton @accentBg px-4 text-sm font-semibold text-white @shadowSoft transition @accentHoverBg">
+                        <div class="actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i data-lucide="search"></i>
                                 Aplicar
                             </button>
-
-                            <a asp-action="Index"
-                               class="inline-flex h-11 items-center justify-center @roundedButton border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 @shadowSoft transition hover:bg-slate-50">
+                            <a href="@BuildUrl(clearFilters: true, page: 1)" class="btn btn-secondary">
+                                <i data-lucide="x"></i>
                                 Limpiar
                             </a>
                         </div>
-                    </form>
-                </div>
-            </aside>
+                    </div>
+                </form>
+            </section>
+        </div>
 
-            <!-- Listado -->
-            <main class="min-w-0">
-                <div class="mb-3 flex items-center justify-between">
-                    <p class="text-sm text-slate-500">
-                        <span class="font-semibold text-slate-700">@Model.Count</span> error@(Model.Count == 1 ? "" : "es")
-                        @if (hasActiveFilters)
+        <div id="loadingState" class="state-panel state-loading" hidden>
+            <strong>Cargando errores...</strong>
+        </div>
+
+        @if (Model.HasError)
+        {
+            <section class="state-panel state-error" role="alert">
+                <h2>No se pudo cargar la lista</h2>
+                <p>@Model.ErrorMessage</p>
+            </section>
+        }
+        else if (!Model.HasResults)
+        {
+            <section class="state-panel">
+                @if (Model.HasFilters)
+                {
+                    <h2>Sin resultados</h2>
+                    <p>No hay errores que coincidan con los filtros actuales.</p>
+                    <p style="margin-top: 14px;">
+                        <a href="@BuildUrl(clearFilters: true, page: 1)" class="btn btn-primary">Limpiar filtros</a>
+                    </p>
+                }
+                else
+                {
+                    <h2>No hay errores activos</h2>
+                    <p>La lista principal esta vacia.</p>
+                }
+            </section>
+        }
+        else
+        {
+            <section class="table-panel" aria-label="Lista de errores">
+                <div class="table-toolbar">
+                    <p>
+                        Página <strong>@Model.CurrentPage</strong> de <strong>@Model.TotalPages</strong>
+                        <span aria-hidden="true"> | </span>
+                        Tamaño <strong>@Model.PageSize</strong>
+                    </p>
+                    <p>
+                        Mostrando <strong>@Model.FirstRecord-@Model.LastRecord</strong> de <strong>@Model.FilteredRecords</strong>
+                        @if (Model.FilteredRecords != Model.TotalRecords)
                         {
-                        <span class="text-slate-400">(filtrado)</span>
+                            <span>filtrados de <strong>@Model.TotalRecords</strong> totales</span>
                         }
                     </p>
                 </div>
 
-                @if (Model.Count == 0)
-                {
-                <div class="@roundedCard border border-dashed border-slate-300 bg-white px-8 py-14 text-center @shadowSoft">
-                    <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center @roundedButton bg-slate-100 text-slate-400">
-                        <i data-lucide="inbox" class="h-6 w-6"></i>
+                <div class="table-scroll">
+                    <table class="errors-table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.Status)" class="sort-link">
+                                        Estatus
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.Status)"></i>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.Priority)" class="sort-link">
+                                        Prioridad
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.Priority)"></i>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.Company)" class="sort-link">
+                                        Empresa
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.Company)"></i>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.ErrorCode)" class="sort-link">
+                                        Código
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.ErrorCode)"></i>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.Occurrences)" class="sort-link"> 
+                                        Cont 
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i> 
+                                    </a> 
+                                </th> 
+                                <th>Programa.Módulo</th>
+                                <th>Descripción</th>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.LastSeen)" class="sort-link">
+                                        Última vez
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.LastSeen)"></i>
+                                    </a>
+                                </th>
+                                <th>Acciones Rápidas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var error in Model.Errors)
+                            {
+                                <tr>
+                                    <td data-label="Estatus">
+                                        <span class="badge @StatusClass(error.Status)">@StatusLabel(error.Status)</span>
+                                    </td>
+                                    <td data-label="Prioridad">
+                                        <span class="badge @PriorityClass(error.Priority)">@PriorityLabel(error.Priority)</span>
+                                    </td>
+                                    <td data-label="Empresa">@error.Company</td>
+                                    <td data-label="Código">
+                                        <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
+                                    </td>
+                                    <td data-label="Cont">
+                                        <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
+                                    </td>
+                                    <td data-label="Programa.Módulo" class="path-cell">
+                                        @error.Program
+                                        <span>@error.Module</span>
+                                    </td>
+                                    <td data-label="Descripción" class="message-cell">@ShortMessage(error.Description)</td>
+                                    <td data-label="Última vez">
+                                        <span class="date-cell">
+                                            <span class="date-relative">@RelativeDate(error.LastSeen)</span>
+                                            <span class="date-absolute">@FormatDate(error.LastSeen)</span>
+                                        </span>
+                                    </td>
+                                    <td data-label="Acciones rápidas">
+                                        <div class="row-actions">
+                                            <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link">
+                                                <i data-lucide="eye"></i>
+                                                Detalles
+                                            </a>
+
+                                            @await Html.PartialAsync("_ErrorStatusDropdown", new ErrorStatusDropdownViewModel
+                                            {
+                                                ErrorId = error.Id,
+                                                ErrorCode = error.Code,
+                                                CurrentStatus = error.Status,
+                                                ReturnUrl = returnUrl
+                                            })
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <nav class="pager" aria-label="Paginacion">
+                    <div class="pager-info">
+                        Página @Model.CurrentPage de @Model.TotalPages
                     </div>
-
-                    <h3 class="text-base font-semibold text-slate-800">No se encontraron errores</h3>
-                    <p class="mt-1 text-sm text-slate-500">Prueba quitando uno o más filtros para ampliar la búsqueda.</p>
-
-                    <a asp-action="Index"
-                       class="mt-5 inline-flex h-10 items-center justify-center @roundedButton @accentBg px-4 text-sm font-medium text-white @shadowSoft transition @accentHoverBg">
-                        Borrar filtros
-                    </a>
-                </div>
-                }
-                else
-                {
-                <div class="space-y-4">
-                    @foreach (var error in Model)
-                    {
-                    <article class="overflow-hidden @roundedCard @cardBorder bg-white @shadowSoft transition hover:border-slate-300 @shadowHover">
-                        <div class="border-b border-slate-100 @cardPadding">
-                            <div class="flex flex-wrap items-center gap-2">
-                                        <span class="inline-flex items-center gap-1.5 @roundedPill px-2.5 py-1 text-xs font-semibold @PriorityBadgeCss(error.Priority)">
-                                            <span class="h-1.5 w-1.5 rounded-full @PriorityDotCss(error.Priority)"></span>
-                                            @PriorityLabel(error.Priority)
-                                        </span>
-
-                                <span class="inline-flex items-center @roundedPill px-2.5 py-1 text-xs font-medium @StatusBadgeCss(error.Status)">
-                                            @StatusLabel(error.Status)
-                                        </span>
-
-                                <span class="inline-flex items-center @roundedPill px-2.5 py-1 text-xs font-medium @AgeBadgeCss(error.FirstSeen)">
-                                            @AgeLabel(error.FirstSeen)
-                                        </span>
-                            </div>
-                        </div>
-
-                        <div class="@cardPadding">
-                            <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <a asp-action="Details"
-                                   asp-route-id="@error.Id"
-                                    class="font-mono text-[15px] font-bold text-slate-900 transition @accentHoverText">
-                                    @error.Code
-                                </a>
-
-                                @if (!string.IsNullOrWhiteSpace(error.Program))
-                                {
-                                <div>
-                                <span class="text-slate-300">•</span>
-                                <span class="text-sm font-medium text-slate-700">@error.Program</span>
-                                </div>
-                                }
-
-                                @if (!string.IsNullOrWhiteSpace(error.Module))
-                                {
-                                <div>
-                                <span class="text-slate-300">•</span>
-                                <span class="text-sm text-slate-500">@error.Module</span>
-                                </div>
-                                }
-                            </div>
-
-                            <p class="mb-4 text-sm leading-6 text-slate-700">
-                                @TruncateText(error.Description, 170)
-                            </p>
-
-                            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                    <i data-lucide="calendar-clock" class="h-3.5 w-3.5"></i>
-                                    Primera: @RelativeTime(error.FirstSeen)
-                                </span>
-
-                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                    <i data-lucide="history" class="h-3.5 w-3.5"></i>
-                                    Última: @RelativeTime(error.LastSeen)
-                                </span>
-
-                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
-                                    <i data-lucide="hash" class="h-3.5 w-3.5"></i>
-                                    @error.Occurrences ocurrencias
-                                </span>
-
-                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                    <i data-lucide="user-round" class="h-3.5 w-3.5"></i>
-                                    @(string.IsNullOrWhiteSpace(error.Assignee) ? "Sin asignar" : error.Assignee)
-                                </span>
-
-                                @if (!string.IsNullOrWhiteSpace(error.Company))
-                                {
-                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                    <i data-lucide="building-2" class="h-3.5 w-3.5"></i>
-                                    @error.Company
-                                </span>
-                                }
-
-                                @if (error.IsSilenced)
-                                {
-                                <span class="inline-flex items-center gap-1.5 @roundedPill bg-slate-100 px-2.5 py-1">
-                                    <i data-lucide="bell-off" class="h-3.5 w-3.5"></i>
-                                    Silenciado
-                                </span>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/70 @cardPadding">
-                            <a asp-action="Details"
-                               asp-route-id="@error.Id"
-                               class="inline-flex h-10 items-center justify-center gap-2 @roundedButton border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 @shadowSoft transition hover:border-slate-300 hover:bg-slate-50">
-                                <i data-lucide="eye" class="h-4 w-4"></i>
-                                Ver detalle
+                    <div class="pager-actions">
+                        @if (Model.HasPreviousPage)
+                        {
+                            <a href="@BuildUrl(page: Model.CurrentPage - 1)" class="btn btn-secondary">
+                                <i data-lucide="chevron-left"></i>
+                                Anterior
                             </a>
+                        }
+                        else
+                        {
+                            <span class="btn btn-secondary" aria-disabled="true">
+                                <i data-lucide="chevron-left"></i>
+                                Anterior
+                            </span>
+                        }
 
-                            @if (error.Status != ErrorStatus.InReview)
-                            {
-                            <form asp-action="UpdateStatusFromList" method="post" class="inline-block">
-                                <input type="hidden" name="id" value="@error.Id" />
-                                <input type="hidden" name="status" value="InReview" />
-                                <button type="submit"
-                                        class="inline-flex h-10 items-center justify-center gap-2 @roundedButton bg-blue-50 px-4 text-sm font-medium text-blue-700 @shadowSoft transition hover:bg-blue-600 hover:text-white">
-                                    <i data-lucide="clipboard-search" class="h-4 w-4"></i>
-                                    En revisión
-                                </button>
-                            </form>
-                            }
-
-                            @if (error.Status != ErrorStatus.Postponed)
-                            {
-                            <form asp-action="UpdateStatusFromList" method="post" class="inline-block">
-                                <input type="hidden" name="id" value="@error.Id" />
-                                <input type="hidden" name="status" value="Postponed" />
-                                <button type="submit"
-                                        class="inline-flex h-10 items-center justify-center gap-2 @roundedButton bg-amber-50 px-4 text-sm font-medium text-amber-700 @shadowSoft transition hover:bg-amber-500 hover:text-white">
-                                    <i data-lucide="clock-3" class="h-4 w-4"></i>
-                                    Posponer
-                                </button>
-                            </form>
-                            }
-
-                            @if (error.Status != ErrorStatus.Resolved)
-                            {
-                            <form asp-action="UpdateStatusFromList" method="post" class="inline-block">
-                                <input type="hidden" name="id" value="@error.Id" />
-                                <input type="hidden" name="status" value="Resolved" />
-                                <button type="submit"
-                                        class="inline-flex h-10 items-center justify-center gap-2 @roundedButton @accentBgSoft px-4 text-sm font-medium @accentText @shadowSoft transition hover:bg-emerald-600 hover:text-white">
-                                    <i data-lucide="check-check" class="h-4 w-4"></i>
-                                    Resolver
-                                </button>
-                            </form>
-                            }
-                        </div>
-                    </article>
-                    }
-                </div>
-                }
-            </main>
-        </div>
+                        @if (Model.HasNextPage)
+                        {
+                            <a href="@BuildUrl(page: Model.CurrentPage + 1)" class="btn btn-secondary">
+                                Siguiente
+                                <i data-lucide="chevron-right"></i>
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="btn btn-secondary" aria-disabled="true">
+                                Siguiente
+                                <i data-lucide="chevron-right"></i>
+                            </span>
+                        }
+                    </div>
+                </nav>
+            </section>
+        }
     </div>
 </div>
 
 @section Scripts {
-<script>
-    function toggleFilterPanel() {
-        const panel = document.getElementById('filterPanel');
-        if (!panel) return;
+    <script src="~/js/status-dropdown.js" asp-append-version="true"></script>
 
-        panel.classList.toggle('hidden');
+    <script>
+        const loadingState = document.getElementById('loadingState');
 
-        if (window.renderLucide) {
-            window.renderLucide(panel);
+        function showLoadingState() {
+            if (!loadingState) return;
+            loadingState.hidden = false;
         }
-    }
 
-    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('errorFilters')?.addEventListener('submit', showLoadingState);
+
+        document.querySelectorAll('.sort-link, .pager a').forEach((link) => {
+            link.addEventListener('click', showLoadingState);
+        });
+
         if (window.renderLucide) {
             window.renderLucide();
         }
-    });
-</script>
+    </script>
 }

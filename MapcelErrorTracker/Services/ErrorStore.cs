@@ -4,14 +4,96 @@ namespace MapcelErrorTracker.Services;
 
 public class ErrorStore
 {
-    private readonly List<ErrorItem> _errors;
+    private readonly List<ErrorItem> _errors = SeedData();
 
-    public ErrorStore()
+    public List<ErrorItem> GetAll() => this._errors;
+
+    public ErrorListViewModel GetList(ErrorListQuery query)
     {
-        _errors = SeedData();
-    }
+        query.SortBy = NormalizeSortBy(query.SortBy);
+        query.SortDirection = query.SafeSortDirection;
+        query.Page = query.SafePage;
+        query.PageSize = query.SafePageSize;
 
-    public List<ErrorItem> GetAll() => _errors;
+        var filtered = this._errors.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            filtered = filtered.Where(e =>
+                Contains(e.Code, search) ||
+                Contains(e.Company, search) ||
+                Contains(e.Program, search) ||
+                Contains(e.Module, search) ||
+                Contains(e.Description, search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Company))
+        {
+            var company = query.Company.Trim();
+            filtered = filtered.Where(e => Contains(e.Company, company));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Program))
+        {
+            var program = query.Program.Trim();
+            filtered = filtered.Where(e => Contains(e.Program, program));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Status) &&
+            Enum.TryParse<ErrorStatus>(query.Status, ignoreCase: true, out var status))
+        {
+            filtered = filtered.Where(e => e.Status == status);
+        }
+        else
+        {
+            filtered = filtered.Where(e => e.Status != ErrorStatus.Resolved);
+            query.Status = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Priority) &&
+            Enum.TryParse<ErrorPriority>(query.Priority, ignoreCase: true, out var priority))
+        {
+            filtered = filtered.Where(e => e.Priority == priority);
+        }
+        else
+        {
+            query.Priority = null;
+        }
+
+        var sorted = ApplySort(filtered, query.SortBy, query.SortDirection);
+        var filteredErrors = sorted.ToList();
+        var filteredRecords = filteredErrors.Count;
+        var pageSize = query.SafePageSize;
+        var totalPages = filteredRecords == 0 ? 1 : (int)Math.Ceiling(filteredRecords / (double)pageSize);
+        var currentPage = Math.Min(query.SafePage, totalPages);
+
+        query.Page = currentPage;
+        query.PageSize = pageSize;
+
+        return new ErrorListViewModel
+        {
+            Query = query,
+            Errors = filteredErrors
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToList(),
+            Companies = _errors.Select(e => e.Company)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList(),
+            Programs = _errors.Select(e => e.Program)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList(),
+            TotalRecords = _errors.Count,
+            FilteredRecords = filteredRecords,
+            CurrentPage = currentPage,
+            PageSize = pageSize
+        };
+    }
 
     public ErrorItem? GetById(int id) => _errors.FirstOrDefault(e => e.Id == id);
 
@@ -41,6 +123,66 @@ public class ErrorStore
         });
     }
 
+    private static bool Contains(string source, string value) =>
+        !string.IsNullOrWhiteSpace(source) &&
+        source.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeSortBy(string? sortBy) =>
+        !string.IsNullOrWhiteSpace(sortBy) && ErrorListSortFields.Allowed.Contains(sortBy)
+            ? sortBy
+            : ErrorListSortFields.LastSeen;
+
+    private static IEnumerable<ErrorItem> ApplySort(
+        IEnumerable<ErrorItem> errors,
+        string sortBy,
+        string sortDirection)
+    {
+        var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<ErrorItem> sorted = sortBy switch
+        {
+            ErrorListSortFields.Status => descending
+                ? errors.OrderByDescending(e => StatusRank(e.Status))
+                : errors.OrderBy(e => StatusRank(e.Status)),
+            ErrorListSortFields.Priority => descending
+                ? errors.OrderByDescending(e => PriorityRank(e.Priority))
+                : errors.OrderBy(e => PriorityRank(e.Priority)),
+            ErrorListSortFields.Company => descending
+                ? errors.OrderByDescending(e => e.Company)
+                : errors.OrderBy(e => e.Company),
+            ErrorListSortFields.ErrorCode => descending
+                ? errors.OrderByDescending(e => e.Code)
+                : errors.OrderBy(e => e.Code),
+            ErrorListSortFields.Occurrences => descending
+                ? errors.OrderByDescending(e => e.Occurrences)
+                : errors.OrderBy(e => e.Occurrences),
+            ErrorListSortFields.FirstSeen => descending
+                ? errors.OrderByDescending(e => e.FirstSeen)
+                : errors.OrderBy(e => e.FirstSeen),
+            _ => descending
+                ? errors.OrderByDescending(e => e.LastSeen)
+                : errors.OrderBy(e => e.LastSeen)
+        };
+
+        return sorted.ThenByDescending(e => e.LastSeen).ThenBy(e => e.Code);
+    }
+
+    private static int PriorityRank(ErrorPriority priority) => priority switch
+    {
+        ErrorPriority.Alta => 3,
+        ErrorPriority.Media => 2,
+        _ => 1
+    };
+
+    private static int StatusRank(ErrorStatus status) => status switch
+    {
+        ErrorStatus.New => 1,
+        ErrorStatus.InReview => 2,
+        ErrorStatus.Postponed => 3,
+        ErrorStatus.Resolved => 4,
+        _ => 5
+    };
+
     private static List<ErrorItem> SeedData()
     {
         var now = DateTime.UtcNow;
@@ -62,9 +204,45 @@ public class ErrorStore
                 ExceptionMessage = "System.TimeoutException: The operation has timed out.",
                 StackTrace = "at PaymentGateway.Controllers.PaymentController.ProcessPayment(PaymentRequest req)\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.SyncActionResultExecutor.Execute()\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.InvokeActionMethodAsync()\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)",
                 Assignee = "Carlos López",
+                Environment = "Producción",
+                Channel = "API REST",
+                ErrorType = "Timeout",
+                Category = "Infraestructura",
+                Subcategory = "Conectividad",
+                Impact = "Alto",
+                Severity = "Crítico",
+                Frequency = "Recurrente",
+                IsReproducible = true,
+                OwnerArea = "Pagos",
+                SourceSystem = "Payment Gateway",
+                DestinationSystem = "Banco Central",
+                BlocksOperation = true,
+                Process = "Procesamiento de pagos",
+                Tags = ["recurrente", "negocio", "integración"],
+                CreatedBy = "System",
+                ModifiedBy = "Carlos López",
+                LastUpdated = now.AddHours(-4),
+                NextFollowUp = now.AddDays(1),
+                LatestComment = "Se detectó saturación en el proveedor de pagos. Escalar al equipo de infraestructura.",
+                NextStep = "Revisar logs del balanceador de carga",
+                CorrelationId = "corr-a1b2c3d4-e5f6",
+                RequestId = "req-7890abcd",
+                NotificationContacts =
+                [
+                    new() { Name = "Carlos López", Email = "carlos@mapcel.com", Role = "Backend Lead" },
+                    new() { Name = "Ana Martínez", Email = "ana@mapcel.com", Role = "SRE" },
+                    new() { Name = "Miguel Torres", Email = "miguel@mapcel.com", Role = "Manager" }
+                ],
+                NotificationFrequencyMinutes = 60,
+                LastNotificationSent = now.AddHours(-1),
+                RequestPayload = "{ \"amount\": 1500.00, \"currency\": \"MXN\", \"merchantId\": \"MCH-001\" }",
+                ResponsePayload = "{ \"error\": \"TIMEOUT\", \"code\": 504 }",
                 ActivityLog =
                 [
-                    new() { Timestamp = now.AddDays(-5), User = "System", Message = "Error detected" }
+                    new() { Timestamp = now.AddDays(-5), User = "System", Message = "Error detectado" },
+                    new() { Timestamp = now.AddDays(-4), User = "Carlos López", Message = "Se revisó el timeout, parece saturación" },
+                    new() { Timestamp = now.AddDays(-3), User = "Ana Martínez", Message = "Se escaló al equipo de infraestructura" },
+                    new() { Timestamp = now.AddDays(-1), User = "Carlos López", Message = "Persiste el problema tras reiniciar servicios" }
                 ]
             },
             new ErrorItem
@@ -83,11 +261,29 @@ public class ErrorStore
                 ExceptionMessage = "Newtonsoft.Json.JsonReaderException: Unexpected character encountered while parsing value: <. Path '', line 0, position 0.",
                 StackTrace = "at EmailWorker.ProcessMessage(QueueMessage msg) in /src/Workers/EmailWorker.cs:line 34\r\n   at Newtonsoft.Json.JsonTextReader.ParseValue()\r\n   at QueueProcessor.HandleMessage(String body)",
                 Assignee = "Sarah Chen",
+                Environment = "Producción",
+                Channel = "Cola de mensajes",
+                ErrorType = "Deserialización",
+                Category = "Integración",
+                BlocksOperation = false,
+                Process = "Envío de correos",
+                Tags = ["intermitente", "integración"],
+                CreatedBy = "System",
+                ModifiedBy = "Sarah Chen",
+                LastUpdated = now.AddDays(-1).AddHours(-20).AddMinutes(-55),
+                LatestComment = "Asignado al equipo de backend",
+                NextStep = "Validar formato del mensaje upstream",
+                CorrelationId = "corr-x9y8z7w6",
+                NotificationContacts =
+                [
+                    new() { Name = "Sarah Chen", Email = "sarah@mapcel.com", Role = "Developer" }
+                ],
+                NotificationFrequencyMinutes = 120,
                 ActivityLog =
                 [
-                    new() { Timestamp = now.AddDays(-2), User = "System", Message = "Error detected" },
-                    new() { Timestamp = now.AddDays(-1).AddHours(-21), User = "Sarah Chen", Message = "Status changed to InReview" },
-                    new() { Timestamp = now.AddDays(-1).AddHours(-20).AddMinutes(-55), User = "Sarah Chen", Message = "Assigned to backend team" }
+                    new() { Timestamp = now.AddDays(-2), User = "System", Message = "Error detectado" },
+                    new() { Timestamp = now.AddDays(-1).AddHours(-21), User = "Sarah Chen", Message = "Estado cambiado a En Revisión" },
+                    new() { Timestamp = now.AddDays(-1).AddHours(-20).AddMinutes(-55), User = "Sarah Chen", Message = "Asignado al equipo de backend" }
                 ]
             },
             new ErrorItem
@@ -126,10 +322,19 @@ public class ErrorStore
                 ExceptionMessage = "KeyNotFoundException: User with id '44f2c' was not found.",
                 StackTrace = "at UserService.Controllers.UserController.GetProfile(String userId) in /src/Controllers/UserController.cs:line 55\r\n   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.SyncActionResultExecutor.Execute()",
                 Assignee = "Miguel Ángel Torres",
+                Environment = "Producción",
+                BlocksOperation = false,
+                Process = "Consulta de perfiles",
+                PostponeReason = "Esperando migración de datos de usuarios del sistema legacy",
+                NextFollowUp = now.AddDays(3),
+                CreatedBy = "System",
+                ModifiedBy = "dev@local",
+                LastUpdated = now.AddDays(-9),
+                Tags = ["negocio"],
                 ActivityLog =
                 [
-                    new() { Timestamp = now.AddDays(-10), User = "System", Message = "Error detected" },
-                    new() { Timestamp = now.AddDays(-9), User = "dev@local", Message = "Status changed to Postponed" }
+                    new() { Timestamp = now.AddDays(-10), User = "System", Message = "Error detectado" },
+                    new() { Timestamp = now.AddDays(-9), User = "dev@local", Message = "Estado cambiado a Pospuesto" }
                 ]
             },
             new ErrorItem
@@ -168,12 +373,21 @@ public class ErrorStore
                 ExceptionMessage = "SecurityTokenExpiredException: IDX10223: Lifetime validation failed. The token is expired.",
                 StackTrace = "at AuthService.Services.TokenService.ValidateJwt(String token) in /src/Services/TokenService.cs:line 67\r\n   at Microsoft.IdentityModel.Tokens.Validators.ValidateLifetime()\r\n   at System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.ValidateToken()",
                 Assignee = "Carlos López",
+                Environment = "Producción",
+                Category = "Seguridad",
+                BlocksOperation = true,
+                Process = "Autenticación",
+                CreatedBy = "System",
+                ModifiedBy = "dev@local",
+                LastUpdated = now.AddDays(-4),
+                LatestComment = "Certificado renovado y redespleado. Problema resuelto.",
+                Tags = ["seguridad"],
                 ActivityLog =
                 [
-                    new() { Timestamp = now.AddDays(-10), User = "System", Message = "Error detected" },
-                    new() { Timestamp = now.AddDays(-8), User = "dev@local", Message = "Status changed to InReview" },
-                    new() { Timestamp = now.AddDays(-5), User = "dev@local", Message = "Certificate renewed and redeployed" },
-                    new() { Timestamp = now.AddDays(-4), User = "dev@local", Message = "Status changed to Resolved" }
+                    new() { Timestamp = now.AddDays(-10), User = "System", Message = "Error detectado" },
+                    new() { Timestamp = now.AddDays(-8), User = "dev@local", Message = "Estado cambiado a En Revisión" },
+                    new() { Timestamp = now.AddDays(-5), User = "dev@local", Message = "Certificado renovado y redespleado" },
+                    new() { Timestamp = now.AddDays(-4), User = "dev@local", Message = "Estado cambiado a Resuelto" }
                 ]
             },
             new ErrorItem
@@ -255,10 +469,27 @@ public class ErrorStore
                 StackTrace = "at NotificationService.PushNotifier.SendBatch(List`1 tokens) in /src/Services/PushNotifier.cs:line 78\r\n   at System.Net.Http.HttpClient.SendAsync(HttpRequestMessage request)",
                 Assignee = "Sarah Chen",
                 IsSilenced = true,
+                Environment = "Producción",
+                Channel = "Push Notifications",
+                Category = "Integración",
+                Process = "Envío de notificaciones push",
+                Tags = ["intermitente", "integración"],
+                CreatedBy = "System",
+                ModifiedBy = "Sarah Chen",
+                LastUpdated = now.AddHours(-10),
+                LatestComment = "Notificaciones silenciadas - outage conocido de Firebase",
+                NotificationContacts =
+                [
+                    new() { Name = "Sarah Chen", Email = "sarah@mapcel.com", Role = "Developer" },
+                    new() { Name = "Carlos López", Email = "carlos@mapcel.com", Role = "Backend Lead" }
+                ],
+                NotificationFrequencyMinutes = 60,
+                SilencedUntil = now.AddHours(12),
+                LastNotificationSent = now.AddHours(-3),
                 ActivityLog =
                 [
-                    new() { Timestamp = now.AddHours(-18), User = "System", Message = "Error detected" },
-                    new() { Timestamp = now.AddHours(-10), User = "Sarah Chen", Message = "Silenced notifications - Firebase known outage" }
+                    new() { Timestamp = now.AddHours(-18), User = "System", Message = "Error detectado" },
+                    new() { Timestamp = now.AddHours(-10), User = "Sarah Chen", Message = "Notificaciones silenciadas - outage conocido de Firebase" }
                 ]
             },
             new ErrorItem
