@@ -115,6 +115,41 @@
     static string FormatDate(DateTime date) =>
         date.ToString("dd MMM yyyy HH:mm", CultureInfo.CurrentCulture);
 
+    static string RelativeDate(DateTime date)
+    {
+        var difference = DateTime.UtcNow - date;
+
+        if (difference.TotalSeconds < 60)
+            return "hace un momento";
+
+        if (difference.TotalMinutes < 60)
+        {
+            var minutes = Math.Max(1, (int)difference.TotalMinutes);
+            return $"hace {minutes} minuto{(minutes == 1 ? string.Empty : "s")}";
+        }
+
+        if (difference.TotalHours < 24)
+        {
+            var hours = Math.Max(1, (int)difference.TotalHours);
+            return $"hace {hours} hora{(hours == 1 ? string.Empty : "s")}";
+        }
+
+        if (difference.TotalDays < 30)
+        {
+            var days = Math.Max(1, (int)difference.TotalDays);
+            return $"hace {days} día{(days == 1 ? string.Empty : "s")}";
+        }
+
+        if (difference.TotalDays < 365)
+        {
+            var months = Math.Max(1, (int)(difference.TotalDays / 30));
+            return $"hace {months} mes{(months == 1 ? string.Empty : "es")}";
+        }
+
+        var years = Math.Max(1, (int)(difference.TotalDays / 365));
+        return $"hace {years} año{(years == 1 ? string.Empty : "s")}";
+    }
+
     static string ShortMessage(string message)
     {
         const int maxLength = 130;
@@ -219,6 +254,18 @@
         .actions .btn {
             flex: 1 1 130px;
         }
+
+        .row-actions {
+            display: flex;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .row-actions .btn,
+        .status-dropdown-form,
+        .status-dropdown-trigger {
+            flex: 1 1 0;
+        }
     }
 </style>
 
@@ -246,8 +293,8 @@
 
                     <div class="filters-grid">
                         <div class="field">
-                            <label for="search">Busqueda</label>
-                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa, programa o mensaje" />
+                            <label for="search">Búsqueda</label>
+                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa o mensaje" />
                         </div>
 
                         <div class="field">
@@ -390,24 +437,18 @@
                                 </th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.ErrorCode)" class="sort-link">
-                                        Código error
+                                        Código
                                         <i data-lucide="@SortIcon(ErrorListSortFields.ErrorCode)"></i>
                                     </a>
                                 </th>
+                                <th>
+                                    <a href="@SortUrl(ErrorListSortFields.Occurrences)" class="sort-link"> 
+                                        Cont 
+                                        <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i> 
+                                    </a> 
+                                </th> 
                                 <th>Programa.Módulo</th>
                                 <th>Descripción</th>
-                                @* <th> *@
-                                @*     <a href="@SortUrl(ErrorListSortFields.Occurrences)" class="sort-link"> *@
-                                @*         Ocurrencias *@
-                                @*         <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i> *@
-                                @*     </a> *@
-                                @* </th> *@
-                                <th>
-                                    <a href="@SortUrl(ErrorListSortFields.FirstSeen)" class="sort-link">
-                                        Primera vez
-                                        <i data-lucide="@SortIcon(ErrorListSortFields.FirstSeen)"></i>
-                                    </a>
-                                </th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.LastSeen)" class="sort-link">
                                         Última vez
@@ -430,6 +471,8 @@
                                     <td data-label="Empresa">@error.Company</td>
                                     <td data-label="Código">
                                         <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
+                                    </td>
+                                    <td data-label="Cont">
                                         <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
                                     </td>
                                     <td data-label="Programa.Módulo" class="path-cell">
@@ -437,44 +480,26 @@
                                         <span>@error.Module</span>
                                     </td>
                                     <td data-label="Descripción" class="message-cell">@ShortMessage(error.Description)</td>
-                                    <td data-label="Primera vez">@FormatDate(error.FirstSeen)</td>
-                                    <td data-label="Última vez">@FormatDate(error.LastSeen)</td>
+                                    <td data-label="Última vez">
+                                        <span class="date-cell">
+                                            <span class="date-relative">@RelativeDate(error.LastSeen)</span>
+                                            <span class="date-absolute">@FormatDate(error.LastSeen)</span>
+                                        </span>
+                                    </td>
                                     <td data-label="Acciones rápidas">
-                                        <div class="actions">
+                                        <div class="row-actions">
                                             <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link">
                                                 <i data-lucide="eye"></i>
                                                 Detalles
                                             </a>
 
-                                            <form asp-action="UpdateStatusFromList" method="post">
-                                                <input type="hidden" name="id" value="@error.Id" />
-                                                <input type="hidden" name="status" value="InReview" />
-                                                <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                                <button type="submit" class="btn btn-review" disabled="@(error.Status == ErrorStatus.InReview)">
-                                                    <i data-lucide="search-code"></i>
-                                                    En revisión
-                                                </button>
-                                            </form>
-
-                                            <form asp-action="UpdateStatusFromList" method="post">
-                                                <input type="hidden" name="id" value="@error.Id" />
-                                                <input type="hidden" name="status" value="Postponed" />
-                                                <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                                <button type="submit" class="btn btn-postpone" disabled="@(error.Status == ErrorStatus.Postponed)">
-                                                    <i data-lucide="clock-3"></i>
-                                                    Posponer
-                                                </button>
-                                            </form>
-
-                                            <form asp-action="UpdateStatusFromList" method="post">
-                                                <input type="hidden" name="id" value="@error.Id" />
-                                                <input type="hidden" name="status" value="Resolved" />
-                                                <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                                <button type="submit" class="btn btn-resolve" disabled="@(error.Status == ErrorStatus.Resolved)">
-                                                    <i data-lucide="check-check"></i>
-                                                    Resuelto
-                                                </button>
-                                            </form>
+                                            @await Html.PartialAsync("_ErrorStatusDropdown", new ErrorStatusDropdownViewModel
+                                            {
+                                                ErrorId = error.Id,
+                                                ErrorCode = error.Code,
+                                                CurrentStatus = error.Status,
+                                                ReturnUrl = returnUrl
+                                            })
                                         </div>
                                     </td>
                                 </tr>
@@ -525,6 +550,8 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/status-dropdown.js" asp-append-version="true"></script>
+
     <script>
         const loadingState = document.getElementById('loadingState');
 

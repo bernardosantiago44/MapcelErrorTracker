@@ -271,13 +271,33 @@
 .path-cell span {
     display: block;
     color: #94a3b8;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .message-cell {
     max-width: 320px;
     color: #334155;
     line-height: 1.35;
+}
+
+.date-cell {
+    display: grid;
+    gap: 2px;
+    min-width: 112px;
+}
+
+.date-relative {
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.date-absolute {
+    color: #94a3b8;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: nowrap;
 }
 
 .badge {
@@ -346,6 +366,107 @@
 
 .actions form {
     display: inline-flex;
+}
+
+.row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 220px;
+}
+
+.status-dropdown-form {
+    display: inline-flex;
+    position: relative;
+}
+
+.status-dropdown {
+    display: inline-flex;
+    position: relative;
+}
+
+.status-dropdown-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 34px;
+    min-width: 132px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0 9px 0 11px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.status-dropdown-trigger svg {
+    width: 15px;
+    height: 15px;
+    color: #475569;
+}
+
+.status-dropdown-trigger:hover,
+.status-dropdown.is-open .status-dropdown-trigger {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.status-dropdown-trigger:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.14);
+    outline: none;
+}
+
+.status-dropdown-menu {
+    position: fixed;
+    z-index: 80;
+    display: none;
+    min-width: 150px;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 14px 30px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.12);
+}
+
+.status-dropdown.is-open .status-dropdown-menu {
+    display: block;
+}
+
+.status-dropdown-option {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    border-radius: 6px;
+    padding: 7px 9px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.1;
+    cursor: default;
+    user-select: none;
+}
+
+.status-dropdown-option svg {
+    width: 14px;
+    height: 14px;
+    color: transparent;
+}
+
+.status-dropdown-option.is-selected svg {
+    color: #2563eb;
+}
+
+.status-dropdown-option:hover,
+.status-dropdown-option.is-active {
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .pager {

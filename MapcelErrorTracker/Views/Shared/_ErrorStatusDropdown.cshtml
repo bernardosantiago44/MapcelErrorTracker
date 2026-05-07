@@ -1,0 +1,54 @@
+@model ErrorStatusDropdownViewModel
+
+@functions {
+    static string StatusLabel(ErrorStatus status) => status switch
+    {
+        ErrorStatus.New => "Nuevo",
+        ErrorStatus.Postponed => "Pospuesto",
+        ErrorStatus.InReview => "En revision",
+        ErrorStatus.Resolved => "Resuelto",
+        _ => status.ToString()
+    };
+}
+
+<form asp-controller="@Model.ControllerName"
+      asp-action="@Model.ActionName"
+      method="post"
+      class="status-dropdown-form"
+      data-status-dropdown-form>
+    <input type="hidden" name="id" value="@Model.ErrorId" />
+    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+    <input type="hidden" name="status" value="@Model.CurrentStatus" data-status-value />
+
+    <div class="status-dropdown" data-status-dropdown>
+        <button type="button"
+                class="status-dropdown-trigger"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-controls="@(Model.ComponentId)-menu"
+                data-status-trigger>
+            <span data-status-label>@StatusLabel(Model.CurrentStatus)</span>
+            <i data-lucide="chevron-down"></i>
+        </button>
+
+        <ul id="@(Model.ComponentId)-menu"
+            class="status-dropdown-menu"
+            role="listbox"
+            aria-label="Cambiar estado de @Model.ErrorCode"
+            data-status-menu>
+            @foreach (var status in Model.Options)
+            {
+                var isSelected = status == Model.CurrentStatus;
+                <li class="status-dropdown-option @(isSelected ? "is-selected" : null)"
+                    role="option"
+                    aria-selected="@(isSelected ? "true" : "false")"
+                    data-status-option
+                    data-value="@status"
+                    data-label="@StatusLabel(status)">
+                    <i data-lucide="check"></i>
+                    <span>@StatusLabel(status)</span>
+                </li>
+            }
+        </ul>
+    </div>
+</form>
