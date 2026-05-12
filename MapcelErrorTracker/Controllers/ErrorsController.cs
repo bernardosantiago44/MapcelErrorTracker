@@ -1,10 +1,12 @@
+using MapcelErrorTracker.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using MapcelErrorTracker.Models;
 using MapcelErrorTracker.Services;
+using Serilog;
 
 namespace MapcelErrorTracker.Controllers;
 
-public class ErrorsController(ErrorStore store) : Controller
+public class ErrorsController(ErrorStore store, IErrorService service) : Controller
 {
     public IActionResult Index(ErrorListQuery query)
     {
@@ -23,6 +25,26 @@ public class ErrorsController(ErrorStore store) : Controller
         var error = store.GetById(id);
         if (error is null) return NotFound();
         return View(error);
+    }
+
+    [HttpGet("api/v1/errors/{id:long:min(1)}")]
+    public async Task<ActionResult<Dictionary<string, string>>> FindById(long id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await service.FindByIdAsync(id, cancellationToken);
+            return Ok(response);
+        }
+        catch (NotFoundException)
+        {
+            Log.Warning("Error with id {id} does not exist", id);
+            return NotFound("Error item with id " + id + " not found.");
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "ErrorsController.FindById: {exception}", exception.Message);
+            return StatusCode(500, "Internal server error");
+        }
     }
 
     [HttpPost]
