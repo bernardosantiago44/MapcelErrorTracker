@@ -23,6 +23,7 @@ public class ErrorsController(
         }
     }
 
+    [HttpGet("Errors/Details/{id:long:min(1)}")]
     public async Task<IActionResult> Details(long id, CancellationToken cancellationToken)
     {
         try

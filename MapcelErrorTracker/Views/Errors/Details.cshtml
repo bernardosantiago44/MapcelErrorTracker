@@ -1,5 +1,4 @@
 @model MapcelErrorTracker.Models.ErrorItem
-@using MapcelErrorTracker.Models
 @{
     ViewData["Title"] = Model.Code;
     var errorAge = DateTime.UtcNow - Model.FirstSeen;

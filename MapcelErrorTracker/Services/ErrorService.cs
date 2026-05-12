@@ -119,10 +119,6 @@ public class ErrorService(
 
             return MapErrorItem(reader);
         }
-        catch (NotFoundException)
-        {
-            throw;
-        }
         catch (SqlException exception)
         {
             logger.LogError(exception, "Unable to load error {ErrorId} from the database.", id);
@@ -190,10 +186,6 @@ public class ErrorService(
 
             logger.LogInformation("Priority updated for error {ErrorId}: {Priority}.", id, priority);
         }
-        catch (NotFoundException)
-        {
-            throw;
-        }
         catch (SqlException exception)
         {
             logger.LogError(exception, "Unable to update priority for error {ErrorId}.", id);
@@ -227,9 +219,10 @@ public class ErrorService(
     }
 
     private ErrorListViewModel BuildListViewModel(
-        IReadOnlyList<ErrorItem> errors,
+        List<ErrorItem> errors,
         ErrorListQuery query)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         query.SortBy = NormalizeSortBy(query.SortBy);
         query.SortDirection = query.SafeSortDirection;
         query.Page = query.SafePage;
@@ -349,7 +342,7 @@ public class ErrorService(
     {
         var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
 
-        IOrderedEnumerable<ErrorItem> sorted = sortBy switch
+        var sorted = sortBy switch
         {
             ErrorListSortFields.Status => descending
                 ? errors.OrderByDescending(error => StatusRank(error.Status))
@@ -495,31 +488,27 @@ public class ErrorService(
     private static string GetNullableString(SqlDataReader reader, string columnName)
     {
         var ordinal = reader.GetOrdinal(columnName);
-        return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
+        return reader.IsDBNull(ordinal) 
+            ? string.Empty 
+            : reader.GetString(ordinal);
     }
 
     private static string GetRequiredString(SqlDataReader reader, string columnName)
     {
         var ordinal = reader.GetOrdinal(columnName);
 
-        if (reader.IsDBNull(ordinal))
-        {
-            throw new DataException($"Required database column {columnName} was null.");
-        }
-
-        return reader.GetString(ordinal);
+        return reader.IsDBNull(ordinal) 
+            ? throw new DataException($"Required database column {columnName} was null.") 
+            : reader.GetString(ordinal);
     }
 
     private static long GetRequiredInt64(SqlDataReader reader, string columnName)
     {
         var ordinal = reader.GetOrdinal(columnName);
 
-        if (reader.IsDBNull(ordinal))
-        {
-            throw new DataException($"Required database column {columnName} was null.");
-        }
-
-        return reader.GetInt64(ordinal);
+        return reader.IsDBNull(ordinal) 
+            ? throw new DataException($"Required database column {columnName} was null.") 
+            : reader.GetInt64(ordinal);
     }
 
     private static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
