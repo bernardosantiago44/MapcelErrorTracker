@@ -2,29 +2,49 @@ using MapcelErrorTracker.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using MapcelErrorTracker.Models;
 using MapcelErrorTracker.Services;
-using Serilog;
 
 namespace MapcelErrorTracker.Controllers;
 
-public class ErrorsController(ErrorStore store, IErrorService service) : Controller
+public class ErrorsController(
+    IErrorService service,
+    ILogger<ErrorsController> logger) : Controller
 {
-    public IActionResult Index(ErrorListQuery query)
+    public async Task<IActionResult> Index(ErrorListQuery query, CancellationToken cancellationToken)
     {
         try
         {
-            return View(store.GetList(query));
+            var model = await service.GetListAsync(query, cancellationToken);
+            return View(model);
         }
-        catch
+        catch (Exception exception)
         {
+            logger.LogError(exception, "Unable to load the errors index.");
             return View(ErrorListViewModel.Error(query, "No se pudo cargar la lista de errores. Intenta de nuevo."));
         }
     }
 
-    public IActionResult Details(int id)
+    public async Task<IActionResult> Details(long id, CancellationToken cancellationToken)
     {
-        var error = store.GetById(id);
-        if (error is null) return NotFound();
-        return View(error);
+        try
+        {
+            var error = await service.GetByIdAsync(id, cancellationToken);
+            return View(error);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Error with id {ErrorId} does not exist.", id);
+            return NotFound();
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            logger.LogWarning(exception, "Invalid error id {ErrorId} requested.", id);
+            return BadRequest("Invalid error id.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to load error details for id {ErrorId}.", id);
+            return StatusCode(500, "Internal server error");
+        }
     }
 
     [HttpGet("api/v1/errors/{id:long:min(1)}")]
@@ -37,41 +57,123 @@ public class ErrorsController(ErrorStore store, IErrorService service) : Control
         }
         catch (NotFoundException)
         {
-            Log.Warning("Error with id {id} does not exist", id);
+            logger.LogWarning("Error with id {ErrorId} does not exist.", id);
             return NotFound("Error item with id " + id + " not found.");
         }
         catch (Exception exception)
         {
-            Log.Error(exception, "ErrorsController.FindById: {exception}", exception.Message);
+            logger.LogError(exception, "Unable to load API error response for id {ErrorId}.", id);
             return StatusCode(500, "Internal server error");
         }
     }
 
     [HttpPost]
-    public IActionResult UpdateStatus(int id, string status)
+    public async Task<IActionResult> UpdateStatus(long id, string status, CancellationToken cancellationToken)
     {
-        if (Enum.TryParse<ErrorStatus>(status, out var parsed))
-            store.UpdateStatus(id, parsed);
+        if (!Enum.TryParse<ErrorStatus>(status, out var parsed))
+        {
+            logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        try
+        {
+            await service.UpdateStatusAsync(id, parsed, cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Status update failed because error {ErrorId} does not exist.", id);
+            return NotFound();
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            logger.LogWarning(exception, "Invalid error id {ErrorId} received during status update.", id);
+            return BadRequest("Invalid error id.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to update status for error {ErrorId}.", id);
+            return StatusCode(500, "Internal server error");
+        }
+
         return RedirectToAction(nameof(Details), new { id });
     }
 
     [HttpPost]
-    public IActionResult UpdateStatusFromList(int id, string status, string? returnUrl)
+    public async Task<IActionResult> UpdateStatusFromList(
+        long id,
+        string status,
+        string? returnUrl,
+        CancellationToken cancellationToken)
     {
-        if (Enum.TryParse<ErrorStatus>(status, out var parsed))
-            store.UpdateStatus(id, parsed);
+        if (!Enum.TryParse<ErrorStatus>(status, out var parsed))
+        {
+            logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
+            return RedirectToIndexOrReturnUrl(returnUrl);
+        }
 
+        try
+        {
+            await service.UpdateStatusAsync(id, parsed, cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Status update failed because error {ErrorId} does not exist.", id);
+            return NotFound();
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            logger.LogWarning(exception, "Invalid error id {ErrorId} received during status update.", id);
+            return BadRequest("Invalid error id.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to update status for error {ErrorId}.", id);
+            return StatusCode(500, "Internal server error");
+        }
+
+        return RedirectToIndexOrReturnUrl(returnUrl);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UpdatePriority(long id, string priority, CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<ErrorPriority>(priority, out var parsed))
+        {
+            logger.LogWarning("Invalid priority value {Priority} received for error {ErrorId}.", priority, id);
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        try
+        {
+            await service.UpdatePriorityAsync(id, parsed, cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Priority update failed because error {ErrorId} does not exist.", id);
+            return NotFound();
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            logger.LogWarning(exception, "Invalid error id {ErrorId} received during priority update.", id);
+            return BadRequest("Invalid error id.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to update priority for error {ErrorId}.", id);
+            return StatusCode(500, "Internal server error");
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    private IActionResult RedirectToIndexOrReturnUrl(string? returnUrl)
+    {
         if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+        {
             return LocalRedirect(returnUrl);
+        }
 
         return RedirectToAction(nameof(Index));
-    }
-
-    [HttpPost]
-    public IActionResult UpdatePriority(int id, string priority)
-    {
-        if (Enum.TryParse<ErrorPriority>(priority, out var parsed))
-            store.UpdatePriority(id, parsed);
-        return RedirectToAction(nameof(Details), new { id });
     }
 }

@@ -15,7 +15,6 @@ builder.Services.AddSerilog((services, loggerConfiguration) =>
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton<ErrorStore>();
 builder.Services.AddSingleton<CssProvider>();
 builder.Services.AddScoped<IErrorService, ErrorService>();
 

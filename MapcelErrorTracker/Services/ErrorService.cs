@@ -1,93 +1,542 @@
 using System.Data;
+using System.Globalization;
 using MapcelErrorTracker.Exceptions;
 using MapcelErrorTracker.Models;
 using Microsoft.Data.SqlClient;
 
 namespace MapcelErrorTracker.Services;
 
-public interface IErrorService
+public class ErrorService(
+    IConfiguration configuration,
+    ILogger<ErrorService> logger)
+    : BaseService(configuration, logger), IErrorService
 {
-    /// <summary>
-    /// Returns the ErrorItem matching the given id from the database, if it exists.
-    /// 
-    /// Looks for the item where the column `err_ID` = id.
-    /// </summary>
-    /// <param name="id"></param>
-    /// <param name="token"></param>
-    /// <returns>The error item, if found</returns>
-    Task<Dictionary<string, string>> FindByIdAsync(long id, CancellationToken token);
-}
+    private const string SqlSelectRecentErrors = """
+        SELECT [err_ID],
+               [err_CodigoError],
+               [err_DescripcioError],
+               [err_Programa_Nombre],
+               [err_Programa_Modulo],
+               [err_Programa_Proceso],
+               [err_Prioridad],
+               [err_FechaGen],
+               [err_FechaUlt],
+               [err_Contador],
+               [err_IdEnterprise],
+               [err_Exception_MstLast],
+               [err_Exception_StackTrace],
+               [err_ErrorAlEnviar],
+               [err_MsgBody],
+               [err_MsgSubject],
+               [err_Procesado],
+               [err_UbicacionProgrm],
+               [err_ComentariosAdic],
+               [err_NombreModifico],
+               [err_NumeroFolio],
+               [err_FirstNotif],
+               [err_LastNotif],
+               [err_NumAviso],
+               [err_MailSended]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
+        WHERE [err_Procesado] IS NULL
+           OR ([err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE([err_FechaUlt], [err_FechaGen]), GETDATE()) <= 1);
+        """;
 
-public class ErrorService(IConfiguration configuration, ILogger<ErrorService> logger) : BaseService(configuration, logger), IErrorService
-{
-    private const string SqlSelectAllErrorItems = """
-                        SELECT [err_ID]
-                                ,[err_CodigoError]
-                                ,[err_DescripcioError]
-                                ,[err_Programa_Nombre]
-                                ,[err_Programa_Modulo]
-                                ,[err_Programa_Proceso]
-                                ,[err_ReferenceType]
-                                ,[err_ReferenceID]
-                                ,[err_Prioridad]
-                                ,[err_FechaGen]
-                                ,[err_FechaUlt]
-                                ,[err_Contador]
-                                ,[err_ContadorNumMax]
-                                ,[err_IdEnterprise]
-                                ,[ENTERPRISE_NAME]
-                                ,[err_Exception_MstLast]
-                                ,[err_Exception_StackTrace]
-                                ,[err_ErrorAlEnviar]
-                                ,[err_MsgBody]
-                                ,[err_MsgSubject]
-                                ,[err_Procesado]
-                                ,[err_UbicacionProgrm]
-                                ,[err_ComentariosAdic]
-                                ,[err_NombreModifico]
-                                ,[err_NumeroFolio]
-                                ,[err_FirstNotif]
-                                ,[err_LastNotif]
-                                ,[err_NumAviso]
-                               FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
-                             LEFT JOIN [MapaLocalizadorVisor].[dbo].[MNG_ENTERPRISES] ON [ENTERPRISE_ID] = [err_IdEnterprise]
-                              WHERE [err_Procesado] IS NULL 
-                               OR ( [err_Procesado] IS NOT NULL AND DATEDIFF(DAY, [err_FechaUlt], GETDATE()) <= 1 )
-                            ORDER BY
-                             IIF([err_Procesado] IS NULL, 0, 1),       -- primeros los NULL
-                             CASE WHEN [err_Procesado] IS NULL THEN [err_FechaGen] END ,  -- dentro de NULL: por err_FechaGen asc
-                             [err_Procesado] DESC  -- después: por err_Procesado desc
-                    """;
-
-    private const string SqlSelectByErrorId = """
-        SELECT [err_ID], [err_CodigoError], [err_DescripcioError]
+    private const string SqlSelectErrorById = """
+        SELECT [err_ID],
+               [err_CodigoError],
+               [err_DescripcioError],
+               [err_Programa_Nombre],
+               [err_Programa_Modulo],
+               [err_Programa_Proceso],
+               [err_Prioridad],
+               [err_FechaGen],
+               [err_FechaUlt],
+               [err_Contador],
+               [err_IdEnterprise],
+               [err_Exception_MstLast],
+               [err_Exception_StackTrace],
+               [err_ErrorAlEnviar],
+               [err_MsgBody],
+               [err_MsgSubject],
+               [err_Procesado],
+               [err_UbicacionProgrm],
+               [err_ComentariosAdic],
+               [err_NombreModifico],
+               [err_NumeroFolio],
+               [err_FirstNotif],
+               [err_LastNotif],
+               [err_NumAviso],
+               [err_MailSended]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         WHERE [err_ID] = @id;
-    """;
-    
-    public async Task<Dictionary<string, string>> FindByIdAsync(long id, CancellationToken token)
+        """;
+
+    private const string SqlUpdateErrorPriority = """
+        UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
+        SET [err_Prioridad] = @priority,
+            [err_NombreModifico] = @modifiedBy
+        WHERE [err_ID] = @id;
+        """;
+
+    public async Task<ErrorListViewModel> GetListAsync(
+        ErrorListQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        try
+        {
+            var errors = await GetRecentErrorsAsync(cancellationToken);
+            return BuildListViewModel(errors, query);
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to load errors from the database.");
+            throw;
+        }
+    }
+
+    public async Task<ErrorItem> GetByIdAsync(long id, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
 
-        await using var connection = new SqlConnection(ConnectionString);
-        await connection.OpenAsync(token);
-
-        await using var selectCmd = new SqlCommand(SqlSelectByErrorId, connection);
-        selectCmd.CommandType = CommandType.Text;
-        selectCmd.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
-        
-        await using var reader = await selectCmd.ExecuteReaderAsync(token);
-        if (!await reader.ReadAsync(token).ConfigureAwait(false)) throw new NotFoundException("ErrorItem");
-        var errorId = reader.GetInt64(0);
-        var codigoError = reader.GetString(1);
-        var description = reader.GetString(2);
-            
-        return new Dictionary<string, string>() 
+        try
         {
-            { "id", errorId.ToString() },
-            { "codigoError", codigoError },
-            { "description", description }
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = new SqlCommand(SqlSelectErrorById, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                throw new NotFoundException(nameof(ErrorItem));
+            }
+
+            return MapErrorItem(reader);
+        }
+        catch (NotFoundException)
+        {
+            throw;
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to load error {ErrorId} from the database.", id);
+            throw;
+        }
+    }
+
+    public async Task<Dictionary<string, string>> FindByIdAsync(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var error = await GetByIdAsync(id, cancellationToken);
+
+        return new Dictionary<string, string>
+        {
+            ["id"] = error.Id.ToString(CultureInfo.InvariantCulture),
+            ["codigoError"] = error.Code,
+            ["description"] = error.Description,
+            ["program"] = error.Program,
+            ["module"] = error.Module,
+            ["priority"] = error.Priority.ToString(),
+            ["status"] = error.Status.ToString()
+        };
+    }
+
+    public async Task UpdateStatusAsync(
+        long id,
+        ErrorStatus status,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+
+        await EnsureExistsAsync(id, cancellationToken);
+
+        logger.LogInformation(
+            "Status update requested for error {ErrorId}: {Status}. No database column exists yet, so no data was written.",
+            id,
+            status);
+    }
+
+    public async Task UpdatePriorityAsync(
+        long id,
+        ErrorPriority priority,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+
+        try
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = new SqlCommand(SqlUpdateErrorPriority, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+            command.Parameters.Add(new SqlParameter("@priority", SqlDbType.VarChar, 15) { Value = priority.ToString() });
+            command.Parameters.Add(new SqlParameter("@modifiedBy", SqlDbType.VarChar, 25) { Value = "MapcelErrorTracker" });
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+
+            if (rowsAffected == 0)
+            {
+                throw new NotFoundException(nameof(ErrorItem));
+            }
+
+            logger.LogInformation("Priority updated for error {ErrorId}: {Priority}.", id, priority);
+        }
+        catch (NotFoundException)
+        {
+            throw;
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to update priority for error {ErrorId}.", id);
+            throw;
+        }
+    }
+
+    private async Task<List<ErrorItem>> GetRecentErrorsAsync(CancellationToken cancellationToken)
+    {
+        var errors = new List<ErrorItem>();
+
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(SqlSelectRecentErrors, connection);
+        command.CommandType = CommandType.Text;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            errors.Add(MapErrorItem(reader));
+        }
+
+        return errors;
+    }
+
+    private async Task EnsureExistsAsync(long id, CancellationToken cancellationToken)
+    {
+        _ = await GetByIdAsync(id, cancellationToken);
+    }
+
+    private ErrorListViewModel BuildListViewModel(
+        IReadOnlyList<ErrorItem> errors,
+        ErrorListQuery query)
+    {
+        query.SortBy = NormalizeSortBy(query.SortBy);
+        query.SortDirection = query.SafeSortDirection;
+        query.Page = query.SafePage;
+        query.PageSize = query.SafePageSize;
+
+        var filtered = ApplyFilters(errors, query);
+        var sorted = ApplySort(filtered, query.SortBy, query.SortDirection);
+        var filteredErrors = sorted.ToList();
+        var filteredRecords = filteredErrors.Count;
+        var totalPages = filteredRecords == 0
+            ? 1
+            : (int)Math.Ceiling(filteredRecords / (double)query.PageSize);
+        var currentPage = Math.Min(query.Page, totalPages);
+
+        query.Page = currentPage;
+
+        return new ErrorListViewModel
+        {
+            Query = query,
+            Errors = filteredErrors
+                .Skip((currentPage - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToList(),
+            Companies = errors
+                .Select(error => error.Company)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value)
+                .ToList(),
+            Programs = errors
+                .Select(error => error.Program)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value)
+                .ToList(),
+            TotalRecords = errors.Count,
+            FilteredRecords = filteredRecords,
+            CurrentPage = currentPage,
+            PageSize = query.PageSize
+        };
+    }
+
+    private static IEnumerable<ErrorItem> ApplyFilters(
+        IEnumerable<ErrorItem> errors,
+        ErrorListQuery query)
+    {
+        var filtered = errors;
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            filtered = filtered.Where(error =>
+                Contains(error.Code, search) ||
+                Contains(error.Company, search) ||
+                Contains(error.Program, search) ||
+                Contains(error.Module, search) ||
+                Contains(error.Description, search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Company))
+        {
+            var company = query.Company.Trim();
+            filtered = filtered.Where(error => Contains(error.Company, company));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Program))
+        {
+            var program = query.Program.Trim();
+            filtered = filtered.Where(error => Contains(error.Program, program));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Status) &&
+            Enum.TryParse<ErrorStatus>(query.Status, ignoreCase: true, out var status))
+        {
+            filtered = filtered.Where(error => error.Status == status);
+        }
+        else
+        {
+            filtered = filtered.Where(error => error.Status != ErrorStatus.Resolved);
+            query.Status = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Priority) &&
+            Enum.TryParse<ErrorPriority>(query.Priority, ignoreCase: true, out var priority))
+        {
+            filtered = filtered.Where(error => error.Priority == priority);
+        }
+        else
+        {
+            query.Priority = null;
+        }
+
+        return filtered;
+    }
+
+    private static bool Contains(string source, string value)
+    {
+        return !string.IsNullOrWhiteSpace(source) &&
+               source.Contains(value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeSortBy(string? sortBy)
+    {
+        if (!string.IsNullOrWhiteSpace(sortBy) &&
+            ErrorListSortFields.Allowed.Contains(sortBy))
+        {
+            return sortBy;
+        }
+
+        return ErrorListSortFields.LastSeen;
+    }
+
+    private static IEnumerable<ErrorItem> ApplySort(
+        IEnumerable<ErrorItem> errors,
+        string sortBy,
+        string sortDirection)
+    {
+        var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+        IOrderedEnumerable<ErrorItem> sorted = sortBy switch
+        {
+            ErrorListSortFields.Status => descending
+                ? errors.OrderByDescending(error => StatusRank(error.Status))
+                : errors.OrderBy(error => StatusRank(error.Status)),
+            ErrorListSortFields.Priority => descending
+                ? errors.OrderByDescending(error => PriorityRank(error.Priority))
+                : errors.OrderBy(error => PriorityRank(error.Priority)),
+            ErrorListSortFields.Company => descending
+                ? errors.OrderByDescending(error => error.Company)
+                : errors.OrderBy(error => error.Company),
+            ErrorListSortFields.ErrorCode => descending
+                ? errors.OrderByDescending(error => error.Code)
+                : errors.OrderBy(error => error.Code),
+            ErrorListSortFields.Occurrences => descending
+                ? errors.OrderByDescending(error => error.Occurrences)
+                : errors.OrderBy(error => error.Occurrences),
+            ErrorListSortFields.FirstSeen => descending
+                ? errors.OrderByDescending(error => error.FirstSeen)
+                : errors.OrderBy(error => error.FirstSeen),
+            _ => descending
+                ? errors.OrderByDescending(error => error.LastSeen)
+                : errors.OrderBy(error => error.LastSeen)
         };
 
+        return sorted.ThenByDescending(error => error.LastSeen).ThenBy(error => error.Code);
+    }
+
+    private static int PriorityRank(ErrorPriority priority)
+    {
+        return priority switch
+        {
+            ErrorPriority.Alta => 3,
+            ErrorPriority.Media => 2,
+            _ => 1
+        };
+    }
+
+    private static int StatusRank(ErrorStatus status)
+    {
+        return status switch
+        {
+            ErrorStatus.New => 1,
+            ErrorStatus.InReview => 2,
+            ErrorStatus.Postponed => 3,
+            ErrorStatus.Resolved => 4,
+            _ => 5
+        };
+    }
+
+    private ErrorItem MapErrorItem(SqlDataReader reader)
+    {
+        var firstSeen = GetNullableDateTime(reader, "err_FechaGen") ?? DateTime.UtcNow;
+        var lastSeen = GetNullableDateTime(reader, "err_FechaUlt") ?? firstSeen;
+        var processedAt = GetNullableDateTime(reader, "err_Procesado");
+        var enterpriseId = GetNullableInt32(reader, "err_IdEnterprise");
+
+        return new ErrorItem
+        {
+            Id = GetRequiredInt64(reader, "err_ID"),
+            Code = GetRequiredString(reader, "err_CodigoError"),
+            Description = GetRequiredString(reader, "err_DescripcioError"),
+            Program = GetRequiredString(reader, "err_Programa_Nombre"),
+            Module = GetRequiredString(reader, "err_Programa_Modulo"),
+            Process = GetNullableString(reader, "err_Programa_Proceso"),
+            Priority = ParsePriority(GetRequiredString(reader, "err_Prioridad")),
+            Status = MapStatus(processedAt),
+            Occurrences = GetNullableInt16(reader, "err_Contador") ?? 0,
+            FirstSeen = firstSeen,
+            LastSeen = lastSeen,
+            Company = enterpriseId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            ExceptionMessage = GetNullableString(reader, "err_Exception_MstLast"),
+            StackTrace = GetNullableString(reader, "err_Exception_StackTrace"),
+            RequestPayload = GetNullableString(reader, "err_MsgBody"),
+            ResponsePayload = GetNullableString(reader, "err_ErrorAlEnviar"),
+            LatestComment = GetNullableString(reader, "err_ComentariosAdic"),
+            ModifiedBy = GetNullableString(reader, "err_NombreModifico"),
+            FolioNumber = GetNullableString(reader, "err_NumeroFolio"),
+            Location = GetNullableString(reader, "err_UbicacionProgrm"),
+            LastNotificationSent = GetNullableDateTime(reader, "err_LastNotif"),
+            NotificationFrequencyMinutes = 0,
+            IsSilenced = false,
+            ActivityLog = BuildActivityLog(firstSeen, lastSeen, processedAt)
+        };
+    }
+
+    private ErrorPriority ParsePriority(string value)
+    {
+        if (Enum.TryParse<ErrorPriority>(value, ignoreCase: true, out var priority))
+        {
+            return priority;
+        }
+
+        logger.LogWarning(
+            "Unknown priority value {PriorityValue} found in err_Prioridad. Defaulting to Media.",
+            value);
+
+        return ErrorPriority.Media;
+    }
+
+    private static ErrorStatus MapStatus(DateTime? processedAt)
+    {
+        return processedAt.HasValue ? ErrorStatus.Resolved : ErrorStatus.New;
+    }
+
+    private static List<ActivityLogEntry> BuildActivityLog(
+        DateTime firstSeen,
+        DateTime lastSeen,
+        DateTime? processedAt)
+    {
+        var activityLog = new List<ActivityLogEntry>
+        {
+            new()
+            {
+                Timestamp = firstSeen,
+                User = "System",
+                Message = "Error detectado"
+            }
+        };
+
+        if (lastSeen != firstSeen)
+        {
+            activityLog.Add(new ActivityLogEntry
+            {
+                Timestamp = lastSeen,
+                User = "System",
+                Message = "Última ocurrencia registrada"
+            });
+        }
+
+        if (processedAt.HasValue)
+        {
+            activityLog.Add(new ActivityLogEntry
+            {
+                Timestamp = processedAt.Value,
+                User = "System",
+                Message = "Error marcado como procesado"
+            });
+        }
+
+        return activityLog;
+    }
+
+    private static string GetNullableString(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
+    }
+
+    private static string GetRequiredString(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        if (reader.IsDBNull(ordinal))
+        {
+            throw new DataException($"Required database column {columnName} was null.");
+        }
+
+        return reader.GetString(ordinal);
+    }
+
+    private static long GetRequiredInt64(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        if (reader.IsDBNull(ordinal))
+        {
+            throw new DataException($"Required database column {columnName} was null.");
+        }
+
+        return reader.GetInt64(ordinal);
+    }
+
+    private static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+    }
+
+    private static int? GetNullableInt32(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+    }
+
+    private static short? GetNullableInt16(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt16(ordinal);
     }
 }

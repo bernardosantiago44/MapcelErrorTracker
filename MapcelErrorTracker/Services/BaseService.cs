@@ -1,30 +1,31 @@
-using MapcelErrorTracker.Exceptions;
-using Serilog;
-
 namespace MapcelErrorTracker.Services;
 
 public abstract class BaseService
 {
-    private readonly IConfiguration _configuration;
-    protected string ConnectionString;
-    protected readonly ILogger<BaseService> Logger;
+    private const string DefaultConnectionName = "DevelopmentConnection";
+    private const string ConnectionNameConfigurationKey = "Database:ConnectionName";
 
-    protected BaseService(IConfiguration configuration, ILogger<BaseService> logger)
+    protected BaseService(IConfiguration configuration, ILogger logger)
     {
-        _configuration = configuration;
-        Logger = logger;
-        ConnectionString = string.Empty;
-        SetupConnectionString("DevelopmentConnection");
+        var connectionName = configuration[ConnectionNameConfigurationKey] ?? DefaultConnectionName;
+        ConnectionString = GetRequiredConnectionString(configuration, logger, connectionName);
     }
-    
-    private void SetupConnectionString(string connectionName)
+
+    protected string ConnectionString { get; }
+
+    private static string GetRequiredConnectionString(
+        IConfiguration configuration,
+        ILogger logger,
+        string connectionName)
     {
-        var connection = _configuration.GetConnectionString(connectionName);
+        var connection = configuration.GetConnectionString(connectionName);
+
         if (string.IsNullOrEmpty(connection))
         {
-            Log.Fatal("Connection string not found in the appsettings.json");
-            throw new Exception($"Connection {connectionName} could not be found in appsettings.json.");
+            logger.LogCritical("Connection string {ConnectionName} was not configured.", connectionName);
+            throw new InvalidOperationException($"Connection {connectionName} could not be found in appsettings.json.");
         }
-        ConnectionString = connection;
+
+        return connection;
     }
 }
