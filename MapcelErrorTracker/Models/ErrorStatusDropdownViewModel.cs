@@ -2,7 +2,7 @@ namespace MapcelErrorTracker.Models;
 
 public class ErrorStatusDropdownViewModel
 {
-    public int ErrorId { get; set; }
+    public long ErrorId { get; set; }
     public string ErrorCode { get; set; } = string.Empty;
     public ErrorStatus CurrentStatus { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;

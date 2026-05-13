@@ -211,7 +211,7 @@
 
 .errors-table {
     width: 100%;
-    min-width: 1120px;
+    min-width: 1160px;
     border-collapse: collapse;
 }
 
@@ -278,6 +278,115 @@
     max-width: 320px;
     color: #334155;
     line-height: 1.35;
+}
+
+.assignees-header {
+    width: 74px;
+    text-align: center;
+}
+
+.assignees-cell {
+    width: 74px;
+    min-width: 74px;
+    text-align: center;
+}
+
+.assignee-stack {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+}
+
+.assignee-stack:focus {
+    outline: none;
+}
+
+.assignee-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.assignee-avatar + .assignee-avatar {
+    margin-left: -6px;
+}
+
+.assignee-count {
+    font-size: 12px;
+}
+
+.assignee-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    z-index: 90;
+    display: none;
+    min-width: 180px;
+    max-width: 240px;
+    transform: translateX(-50%);
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 14px 30px rgb(15 23 42 / 0.16), 0 2px 6px rgb(15 23 42 / 0.10);
+    padding: 9px 10px;
+    color: #334155;
+    text-align: left;
+}
+
+.assignee-tooltip::before {
+    position: absolute;
+    top: -5px;
+    left: calc(50% - 5px);
+    width: 10px;
+    height: 10px;
+    border-left: 1px solid #cbd5e1;
+    border-top: 1px solid #cbd5e1;
+    background: #fff;
+    content: "";
+    transform: rotate(45deg);
+}
+
+.assignee-tooltip strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.assignee-tooltip ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.assignee-tooltip li {
+    overflow: hidden;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.assignee-stack-tooltip:hover .assignee-tooltip,
+.assignee-stack-tooltip:focus .assignee-tooltip,
+.assignee-stack-tooltip:focus-within .assignee-tooltip {
+    display: block;
 }
 
 .date-cell {

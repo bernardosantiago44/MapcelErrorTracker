@@ -5,7 +5,7 @@
     ViewData["Title"] = "Errores";
 
     var q = Model.Query;
-    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString.ToString();
+    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString;
     var currentSort = q.SortBy;
     var currentDirection = q.SafeSortDirection;
 
@@ -27,7 +27,6 @@
         if (!clearFilters)
         {
             AddQueryValue(values, "search", q.Search);
-            AddQueryValue(values, "company", q.Company);
             AddQueryValue(values, "program", q.Program);
             AddQueryValue(values, "status", q.Status);
             AddQueryValue(values, "priority", q.Priority);
@@ -89,19 +88,20 @@
 
     static string StatusLabel(ErrorStatus status) => status switch
     {
-        ErrorStatus.New => "Nuevo",
-        ErrorStatus.InReview => "En revision",
-        ErrorStatus.Postponed => "Pospuesto",
-        ErrorStatus.Resolved => "Resuelto",
+        ErrorStatus.Nuevo => "Nuevo",
+        ErrorStatus.EnRevision => "En revisión",
+        ErrorStatus.Pospuesto => "Pospuesto",
+        ErrorStatus.Resuelto => "Resuelto",
+        ErrorStatus.SinAsignar => "Sin asignar",
         _ => status.ToString()
     };
 
     static string StatusClass(ErrorStatus status) => status switch
     {
-        ErrorStatus.New => "status-new",
-        ErrorStatus.InReview => "status-review",
-        ErrorStatus.Postponed => "status-postponed",
-        ErrorStatus.Resolved => "status-resolved",
+        ErrorStatus.Nuevo => "status-new",
+        ErrorStatus.EnRevision => "status-review",
+        ErrorStatus.Pospuesto => "status-postponed",
+        ErrorStatus.Resuelto => "status-resolved",
         _ => "status-default"
     };
 
@@ -157,6 +157,22 @@
             return message;
 
         return message[..maxLength] + "...";
+    }
+
+    static string AssigneeInitials(ProgrammerUser user)
+    {
+        var parts = user.Name
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
+            return "?";
+
+        if (parts.Length == 1)
+            return parts[0].Length == 1
+                ? parts[0].ToUpper(CultureInfo.CurrentCulture)
+                : parts[0][..2].ToUpper(CultureInfo.CurrentCulture);
+
+        return string.Concat(parts[0][0], parts[^1][0]).ToUpper(CultureInfo.CurrentCulture);
     }
 
     static bool Selected(string? current, object option) =>
@@ -294,18 +310,7 @@
                     <div class="filters-grid">
                         <div class="field">
                             <label for="search">Búsqueda</label>
-                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa o mensaje" />
-                        </div>
-
-                        <div class="field">
-                            <label for="company">Empresa</label>
-                            <input id="company" name="company" type="search" value="@q.Company" list="company-options" placeholder="Todas" />
-                            <datalist id="company-options">
-                                @foreach (var company in Model.Companies)
-                                {
-                                    <option value="@company"></option>
-                                }
-                            </datalist>
+                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo o mensaje" />
                         </div>
 
                         <div class="field">
@@ -429,15 +434,9 @@
                                         <i data-lucide="@SortIcon(ErrorListSortFields.Priority)"></i>
                                     </a>
                                 </th>
-                                <th>
-                                    <a href="@SortUrl(ErrorListSortFields.Company)" class="sort-link">
-                                        Empresa
-                                        <i data-lucide="@SortIcon(ErrorListSortFields.Company)"></i>
-                                    </a>
-                                </th>
-                                <th>
+                                <th style="text-align: center;">
                                     <a href="@SortUrl(ErrorListSortFields.ErrorCode)" class="sort-link">
-                                        Código
+                                        Código<br/>Programa ⋅ Módulo
                                         <i data-lucide="@SortIcon(ErrorListSortFields.ErrorCode)"></i>
                                     </a>
                                 </th>
@@ -447,7 +446,7 @@
                                         <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i> 
                                     </a> 
                                 </th> 
-                                <th>Programa.Módulo</th>
+                                <th class="assignees-header">Resp.</th>
                                 <th>Descripción</th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.LastSeen)" class="sort-link">
@@ -468,16 +467,40 @@
                                     <td data-label="Prioridad">
                                         <span class="badge @PriorityClass(error.Priority)">@PriorityLabel(error.Priority)</span>
                                     </td>
-                                    <td data-label="Empresa">@error.Company</td>
-                                    <td data-label="Código">
+                                    <td data-label="Código" class="path-cell">
                                         <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
+                                        <br/>
+                                        @error.Program 
+                                        <span>@error.Module</span>
                                     </td>
                                     <td data-label="Cont">
                                         <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
                                     </td>
-                                    <td data-label="Programa.Módulo" class="path-cell">
-                                        @error.Program
-                                        <span>@error.Module</span>
+                                    <td data-label="Responsables" class="assignees-cell">
+                                        @if (error.AssignedUsers.Count is 1 or 2)
+                                        {
+                                            <div class="assignee-stack" aria-label="@error.Assignee">
+                                                @foreach (var assignee in error.AssignedUsers)
+                                                {
+                                                    <span class="assignee-avatar">@AssigneeInitials(assignee)</span>
+                                                }
+                                            </div>
+                                        }
+                                        else if (error.AssignedUsers.Count >= 3)
+                                        {
+                                            <div class="assignee-stack assignee-stack-tooltip" tabindex="0" aria-label="@error.Assignee">
+                                                <span class="assignee-avatar assignee-count">@error.AssignedUsers.Count</span>
+                                                <div class="assignee-tooltip" role="tooltip">
+                                                    <strong>Responsables</strong>
+                                                    <ul>
+                                                        @foreach (var assignee in error.AssignedUsers)
+                                                        {
+                                                            <li>@assignee.Name</li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        }
                                     </td>
                                     <td data-label="Descripción" class="message-cell">@ShortMessage(error.Description)</td>
                                     <td data-label="Última vez">

@@ -5,9 +5,8 @@ public class ErrorListQuery
     public const int DefaultPageSize = 10;
     private const int MaxPageSize = 50;
 
-    public string? Search { get; set; }
-    public string? Company { get; set; }
-    public string? Program { get; set; }
+    public string? Search { get; init; }
+    public string? Program { get; init; }
     public string? Status { get; set; }
     public string? Priority { get; set; }
     public string SortBy { get; set; } = ErrorListSortFields.LastSeen;
@@ -17,7 +16,6 @@ public class ErrorListQuery
 
     public bool HasFilters =>
         !string.IsNullOrWhiteSpace(Search) ||
-        !string.IsNullOrWhiteSpace(Company) ||
         !string.IsNullOrWhiteSpace(Program) ||
         !string.IsNullOrWhiteSpace(Status) ||
         !string.IsNullOrWhiteSpace(Priority);
@@ -59,16 +57,16 @@ public static class ErrorListSortFields
 
 public class ErrorListViewModel
 {
-    public ErrorListQuery Query { get; set; } = new();
-    public IReadOnlyList<ErrorItem> Errors { get; set; } = [];
-    public IReadOnlyList<string> Companies { get; set; } = [];
-    public IReadOnlyList<string> Programs { get; set; } = [];
-    public int TotalRecords { get; set; }
-    public int FilteredRecords { get; set; }
-    public int CurrentPage { get; set; } = 1;
-    public int PageSize { get; set; } = ErrorListQuery.DefaultPageSize;
-    public bool IsLoading { get; set; }
-    public string? ErrorMessage { get; set; }
+    public ErrorListQuery Query { get; init; } = new();
+    public IReadOnlyList<ErrorItem> Errors { get; init; } = [];
+    public IReadOnlyList<string> Companies { get; init; } = [];
+    public IReadOnlyList<string> Programs { get; init; } = [];
+    public int TotalRecords { get; init; }
+    public int FilteredRecords { get; init; }
+    public int CurrentPage { get; init; } = 1;
+    public int PageSize { get; init; } = ErrorListQuery.DefaultPageSize;
+    public bool IsLoading { get; init; }
+    public string? ErrorMessage { get; init; }
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
     public bool HasResults => Errors.Count > 0;
