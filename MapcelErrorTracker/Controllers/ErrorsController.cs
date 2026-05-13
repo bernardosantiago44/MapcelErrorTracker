@@ -49,11 +49,11 @@ public class ErrorsController(
     }
 
     [HttpGet("api/v1/errors/{id:long:min(1)}")]
-    public async Task<ActionResult<Dictionary<string, string>>> FindById(long id, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ErrorItem>> GetById(long id, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await service.FindByIdAsync(id, cancellationToken);
+            var response = await service.GetByIdAsync(id, cancellationToken);
             return Ok(response);
         }
         catch (NotFoundException)
@@ -71,7 +71,7 @@ public class ErrorsController(
     [HttpPost]
     public async Task<IActionResult> UpdateStatus(long id, string status, CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<ErrorStatus>(status, out var parsed))
+        if (!TryParseStatus(status, out var parsed))
         {
             logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
             return RedirectToAction(nameof(Details), new { id });
@@ -107,7 +107,7 @@ public class ErrorsController(
         string? returnUrl,
         CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<ErrorStatus>(status, out var parsed))
+        if (!TryParseStatus(status, out var parsed))
         {
             logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
             return RedirectToIndexOrReturnUrl(returnUrl);
@@ -166,6 +166,15 @@ public class ErrorsController(
         }
 
         return RedirectToAction(nameof(Details), new { id });
+    }
+
+    private static bool TryParseStatus(string? status, out ErrorStatus parsed)
+    {
+        parsed = default;
+
+        return !string.IsNullOrWhiteSpace(status) &&
+               Enum.TryParse(status, ignoreCase: true, out parsed) &&
+               Enum.IsDefined(parsed);
     }
 
     private IActionResult RedirectToIndexOrReturnUrl(string? returnUrl)

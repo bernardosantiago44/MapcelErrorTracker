@@ -17,19 +17,20 @@
 
     static string StatusBadge(ErrorStatus s) => s switch
     {
-        ErrorStatus.New => "bg-teal-50 text-teal-700 border border-teal-200",
-        ErrorStatus.InReview => "bg-blue-50 text-blue-700 border border-blue-200",
-        ErrorStatus.Postponed => "bg-purple-50 text-purple-700 border border-purple-200",
-        ErrorStatus.Resolved => "bg-emerald-50 text-emerald-700 border border-emerald-200",
+        ErrorStatus.Nuevo => "bg-teal-50 text-teal-700 border border-teal-200",
+        ErrorStatus.EnRevision => "bg-blue-50 text-blue-700 border border-blue-200",
+        ErrorStatus.Pospuesto => "bg-purple-50 text-purple-700 border border-purple-200",
+        ErrorStatus.Resuelto => "bg-emerald-50 text-emerald-700 border border-emerald-200",
         _ => "bg-gray-100 text-gray-600 border border-gray-200"
     };
 
     static string StatusLabel(ErrorStatus s) => s switch
     {
-        ErrorStatus.New => "Nuevo",
-        ErrorStatus.InReview => "En Revisión",
-        ErrorStatus.Postponed => "Pospuesto",
-        ErrorStatus.Resolved => "Resuelto",
+        ErrorStatus.Nuevo => "Nuevo",
+        ErrorStatus.EnRevision => "En Revisión",
+        ErrorStatus.Pospuesto => "Pospuesto",
+        ErrorStatus.Resuelto => "Resuelto",
+        ErrorStatus.SinAsignar => "Sin asignar",
         _ => s.ToString()
     };
 
@@ -124,41 +125,41 @@
             <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
                 <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Acciones</h2>
                 <div class="grid grid-cols-2 gap-2 mb-3">
-                    @if (Model.Status != ErrorStatus.InReview)
+                    @if (Model.Status != ErrorStatus.EnRevision)
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
-                            <input type="hidden" name="status" value="InReview"/>
+                            <input type="hidden" name="status" value="@ErrorStatus.EnRevision"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                                 <i data-lucide="eye" style="width:14px;height:14px"></i> En revisión
                             </button>
                         </form>
                     }
-                    @if (Model.Status != ErrorStatus.Resolved)
+                    @if (Model.Status != ErrorStatus.Resuelto)
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
-                            <input type="hidden" name="status" value="Resolved"/>
+                            <input type="hidden" name="status" value="@ErrorStatus.Resuelto"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-emerald-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
                                 <i data-lucide="check-circle" style="width:14px;height:14px"></i> Resolver
                             </button>
                         </form>
                     }
-                    @if (Model.Status != ErrorStatus.Postponed)
+                    @if (Model.Status != ErrorStatus.Pospuesto)
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
-                            <input type="hidden" name="status" value="Postponed"/>
+                            <input type="hidden" name="status" value="@ErrorStatus.Pospuesto"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-purple-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-purple-600 transition-colors">
                                 <i data-lucide="clock" style="width:14px;height:14px"></i> Posponer
                             </button>
                         </form>
                     }
-                    @if (Model.Status == ErrorStatus.Resolved || Model.Status == ErrorStatus.Postponed)
+                    @if (Model.Status is ErrorStatus.Resuelto or ErrorStatus.Pospuesto)
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
-                            <input type="hidden" name="status" value="New"/>
+                            <input type="hidden" name="status" value="@ErrorStatus.Nuevo"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-teal-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-teal-600 transition-colors">
                                 <i data-lucide="rotate-ccw" style="width:14px;height:14px"></i> Reabrir
                             </button>

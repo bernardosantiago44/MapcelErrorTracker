@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Text;
 using MapcelErrorTracker.Exceptions;
 using MapcelErrorTracker.Models;
 using Microsoft.Data.SqlClient;
@@ -36,12 +37,12 @@ public class ErrorService(
                [err_FirstNotif],
                [err_LastNotif],
                [err_NumAviso],
-               [err_MailSended]
+               [err_MailSended],
+               [err_Status]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         WHERE [err_Procesado] IS NULL
            OR ([err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE([err_FechaUlt], [err_FechaGen]), GETDATE()) <= 1);
         """;
-
     private const string SqlSelectErrorById = """
         SELECT [err_ID],
                [err_CodigoError],
@@ -67,14 +68,20 @@ public class ErrorService(
                [err_FirstNotif],
                [err_LastNotif],
                [err_NumAviso],
-               [err_MailSended]
+               [err_MailSended],
+               [err_Status]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         WHERE [err_ID] = @id;
         """;
-
     private const string SqlUpdateErrorPriority = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Prioridad] = @priority,
+            [err_NombreModifico] = @modifiedBy
+        WHERE [err_ID] = @id;
+        """;
+    private const string SqlUpdateErrorStatus = """
+        UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
+        SET [err_Status] = @status,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
         """;
@@ -126,37 +133,45 @@ public class ErrorService(
         }
     }
 
-    public async Task<Dictionary<string, string>> FindByIdAsync(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var error = await GetByIdAsync(id, cancellationToken);
-
-        return new Dictionary<string, string>
-        {
-            ["id"] = error.Id.ToString(CultureInfo.InvariantCulture),
-            ["codigoError"] = error.Code,
-            ["description"] = error.Description,
-            ["program"] = error.Program,
-            ["module"] = error.Module,
-            ["priority"] = error.Priority.ToString(),
-            ["status"] = error.Status.ToString()
-        };
-    }
-
     public async Task UpdateStatusAsync(
         long id,
         ErrorStatus status,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+        ValidateStatus(status);
 
-        await EnsureExistsAsync(id, cancellationToken);
+        try
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync(cancellationToken);
 
-        logger.LogInformation(
-            "Status update requested for error {ErrorId}: {Status}. No database column exists yet, so no data was written.",
-            id,
-            status);
+            await using var command = new SqlCommand(SqlUpdateErrorStatus, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+            command.Parameters.Add(new SqlParameter("@status", SqlDbType.NVarChar, 20)
+            {
+                Value = ToDatabaseStatus(status)
+            });
+            command.Parameters.Add(new SqlParameter("@modifiedBy", SqlDbType.VarChar, 25)
+            {
+                Value = "MapcelErrorTracker"
+            });
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+
+            if (rowsAffected == 0)
+            {
+                throw new NotFoundException(nameof(ErrorItem));
+            }
+
+            logger.LogInformation("Status updated for error {ErrorId}: {Status}.", id, status);
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to update status for error {ErrorId}.", id);
+            throw;
+        }
     }
 
     public async Task UpdatePriorityAsync(
@@ -213,12 +228,7 @@ public class ErrorService(
         return errors;
     }
 
-    private async Task EnsureExistsAsync(long id, CancellationToken cancellationToken)
-    {
-        _ = await GetByIdAsync(id, cancellationToken);
-    }
-
-    private ErrorListViewModel BuildListViewModel(
+    private static ErrorListViewModel BuildListViewModel(
         List<ErrorItem> errors,
         ErrorListQuery query)
     {
@@ -294,14 +304,13 @@ public class ErrorService(
             filtered = filtered.Where(error => Contains(error.Program, program));
         }
 
-        if (!string.IsNullOrWhiteSpace(query.Status) &&
-            Enum.TryParse<ErrorStatus>(query.Status, ignoreCase: true, out var status))
+        if (TryParseStatusName(query.Status, out var status))
         {
             filtered = filtered.Where(error => error.Status == status);
         }
         else
         {
-            filtered = filtered.Where(error => error.Status != ErrorStatus.Resolved);
+            filtered = filtered.Where(error => error.Status != ErrorStatus.Resuelto);
             query.Status = null;
         }
 
@@ -384,12 +393,22 @@ public class ErrorService(
     {
         return status switch
         {
-            ErrorStatus.New => 1,
-            ErrorStatus.InReview => 2,
-            ErrorStatus.Postponed => 3,
-            ErrorStatus.Resolved => 4,
+            ErrorStatus.SinAsignar => 0,
+            ErrorStatus.Nuevo => 1,
+            ErrorStatus.EnRevision => 2,
+            ErrorStatus.Pospuesto => 3,
+            ErrorStatus.Resuelto => 4,
             _ => 5
         };
+    }
+
+    private static bool TryParseStatusName(string? value, out ErrorStatus status)
+    {
+        status = default;
+
+        return !string.IsNullOrWhiteSpace(value) &&
+               Enum.TryParse(value, ignoreCase: true, out status) &&
+               Enum.IsDefined(status);
     }
 
     private ErrorItem MapErrorItem(SqlDataReader reader)
@@ -408,7 +427,7 @@ public class ErrorService(
             Module = GetRequiredString(reader, "err_Programa_Modulo"),
             Process = GetNullableString(reader, "err_Programa_Proceso"),
             Priority = ParsePriority(GetRequiredString(reader, "err_Prioridad")),
-            Status = MapStatus(processedAt),
+            Status = ParseStatus(GetNullableString(reader, "err_Status")),
             Occurrences = GetNullableInt16(reader, "err_Contador") ?? 0,
             FirstSeen = firstSeen,
             LastSeen = lastSeen,
@@ -442,9 +461,65 @@ public class ErrorService(
         return ErrorPriority.Media;
     }
 
-    private static ErrorStatus MapStatus(DateTime? processedAt)
+    private ErrorStatus ParseStatus(string dbStatus)
     {
-        return processedAt.HasValue ? ErrorStatus.Resolved : ErrorStatus.New;
+        var normalizedStatus = NormalizeStatus(dbStatus);
+        var status = normalizedStatus switch
+        {
+            "" => ErrorStatus.SinAsignar,
+            "nuevo" => ErrorStatus.Nuevo,
+            "en revision" => ErrorStatus.EnRevision,
+            "pospuesto" => ErrorStatus.Pospuesto,
+            "resuelto" => ErrorStatus.Resuelto,
+            "sin asignar" => ErrorStatus.SinAsignar,
+            _ => throw new DataException($"Unknown err_Status value '{dbStatus}'.")
+        };
+
+        if (string.IsNullOrWhiteSpace(dbStatus))
+        {
+            logger.LogWarning("Empty err_Status value found. Defaulting to {Status}.", status);
+        }
+
+        return status;
+    }
+
+    private static string ToDatabaseStatus(ErrorStatus status)
+    {
+        ValidateStatus(status);
+
+        return status switch
+        {
+            ErrorStatus.Nuevo => "Nuevo",
+            ErrorStatus.EnRevision => "En revisión",
+            ErrorStatus.Pospuesto => "Pospuesto",
+            ErrorStatus.Resuelto => "Resuelto",
+            ErrorStatus.SinAsignar => "Sin asignar",
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported error status.")
+        };
+    }
+
+    private static void ValidateStatus(ErrorStatus status)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported error status.");
+        }
+    }
+
+    private static string NormalizeStatus(string value)
+    {
+        var normalized = value.Trim().Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     private static List<ActivityLogEntry> BuildActivityLog(

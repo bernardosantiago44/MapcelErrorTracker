@@ -5,7 +5,7 @@
     ViewData["Title"] = "Errores";
 
     var q = Model.Query;
-    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString.ToString();
+    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString;
     var currentSort = q.SortBy;
     var currentDirection = q.SafeSortDirection;
 
@@ -89,19 +89,21 @@
 
     static string StatusLabel(ErrorStatus status) => status switch
     {
-        ErrorStatus.New => "Nuevo",
-        ErrorStatus.InReview => "En revision",
-        ErrorStatus.Postponed => "Pospuesto",
-        ErrorStatus.Resolved => "Resuelto",
+        ErrorStatus.Nuevo => "Nuevo",
+        ErrorStatus.EnRevision => "En revisión",
+        ErrorStatus.Pospuesto => "Pospuesto",
+        ErrorStatus.Resuelto => "Resuelto",
+        ErrorStatus.SinAsignar => "Sin asignar",
         _ => status.ToString()
     };
 
     static string StatusClass(ErrorStatus status) => status switch
     {
-        ErrorStatus.New => "status-new",
-        ErrorStatus.InReview => "status-review",
-        ErrorStatus.Postponed => "status-postponed",
-        ErrorStatus.Resolved => "status-resolved",
+        ErrorStatus.Nuevo => "status-new",
+        ErrorStatus.EnRevision => "status-review",
+        ErrorStatus.Pospuesto => "status-postponed",
+        ErrorStatus.Resuelto => "status-resolved",
+        ErrorStatus.SinAsignar => "status-default",
         _ => "status-default"
     };
 
