@@ -12,5 +12,5 @@ public interface IErrorService
 
     Task UpdatePriorityAsync(long id, ErrorPriority priority, CancellationToken cancellationToken);
 
-    Task AssignUserAsync(long id, int? userId, CancellationToken cancellationToken);
+    Task AssignUsersAsync(long id, IReadOnlyCollection<int> userIds, CancellationToken cancellationToken);
 }

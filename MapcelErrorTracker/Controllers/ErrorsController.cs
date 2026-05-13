@@ -171,11 +171,11 @@ public class ErrorsController(
     }
 
     [HttpPost]
-    public async Task<IActionResult> AssignUser(long id, int? userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> AssignUsers(long id, int[]? userIds, CancellationToken cancellationToken)
     {
         try
         {
-            await service.AssignUserAsync(id, userId, cancellationToken);
+            await service.AssignUsersAsync(id, userIds ?? [], cancellationToken);
         }
         catch (NotFoundException)
         {
@@ -186,14 +186,13 @@ public class ErrorsController(
         {
             logger.LogWarning(
                 exception,
-                "Invalid assignment value {UserId} received for error {ErrorId}.",
-                userId,
+                "Invalid assignment values received for error {ErrorId}.",
                 id);
             return BadRequest("Invalid assignment.");
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to assign programmer {UserId} to error {ErrorId}.", userId, id);
+            logger.LogError(exception, "Unable to assign programmers to error {ErrorId}.", id);
             return StatusCode(500, "Internal server error");
         }
 

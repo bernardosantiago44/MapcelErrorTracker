@@ -38,15 +38,8 @@ public class ErrorService(
                e.[err_LastNotif],
                e.[err_NumAviso],
                e.[err_MailSended],
-               e.[err_Status],
-               e.[err_ProgAsignado],
-               p.[prog_ID] AS [assigned_prog_ID],
-               p.[prog_nombre] AS [assigned_prog_nombre],
-               p.[prog_telegram_id] AS [assigned_prog_telegram_id],
-               p.[prog_celular] AS [assigned_prog_celular]
+               e.[err_Status]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
-        LEFT JOIN [MapaLocalizadorVisor].[dbo].[ErroresProgramadores] AS p
-            ON p.[prog_ID] = e.[err_ProgAsignado]
         WHERE e.[err_Procesado] IS NULL
            OR (e.[err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE(e.[err_FechaUlt], e.[err_FechaGen]), GETDATE()) <= 1);
         """;
@@ -76,16 +69,20 @@ public class ErrorService(
                e.[err_LastNotif],
                e.[err_NumAviso],
                e.[err_MailSended],
-               e.[err_Status],
-               e.[err_ProgAsignado],
-               p.[prog_ID] AS [assigned_prog_ID],
-               p.[prog_nombre] AS [assigned_prog_nombre],
-               p.[prog_telegram_id] AS [assigned_prog_telegram_id],
-               p.[prog_celular] AS [assigned_prog_celular]
+               e.[err_Status]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
-        LEFT JOIN [MapaLocalizadorVisor].[dbo].[ErroresProgramadores] AS p
-            ON p.[prog_ID] = e.[err_ProgAsignado]
         WHERE e.[err_ID] = @id;
+        """;
+    private const string SqlSelectAssignedUsersByErrorId = """
+        SELECT p.[prog_ID],
+               p.[prog_nombre],
+               p.[prog_telegram_id],
+               p.[prog_celular]
+        FROM [MapaLocalizadorVisor].[dbo].[ErroresAsignaturas] AS a
+        INNER JOIN [MapaLocalizadorVisor].[dbo].[ErroresProgramadores] AS p
+            ON p.[prog_ID] = a.[programadorId]
+        WHERE a.[errorId] = @id
+        ORDER BY p.[prog_nombre];
         """;
     private const string SqlUpdateErrorPriority = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
@@ -99,12 +96,21 @@ public class ErrorService(
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
         """;
-    private const string SqlAssignErrorUser = """
+    private const string SqlDeleteAssignedUsers = """
+        DELETE FROM [MapaLocalizadorVisor].[dbo].[ErroresAsignaturas]
+        WHERE [errorId] = @id;
+        """;
+    private const string SqlInsertAssignedUser = """
+        INSERT INTO [MapaLocalizadorVisor].[dbo].[ErroresAsignaturas]
+            ([errorId], [programadorId])
+        VALUES
+            (@id, @userId);
+        """;
+    private const string SqlUpdateErrorAssignmentState = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
-        SET [err_ProgAsignado] = @assignedUserId,
-            [err_Status] = CASE
-                WHEN @assignedUserId IS NULL THEN [err_Status]
-                ELSE @reviewStatus
+        SET [err_Status] = CASE
+                WHEN @hasAssignedUsers = 1 THEN @reviewStatus
+                ELSE [err_Status]
             END,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
@@ -141,14 +147,20 @@ public class ErrorService(
             command.CommandType = CommandType.Text;
             command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
 
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            if (!await reader.ReadAsync(cancellationToken))
+            ErrorItem error;
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
-                throw new NotFoundException(nameof(ErrorItem));
+                if (!await reader.ReadAsync(cancellationToken))
+                {
+                    throw new NotFoundException(nameof(ErrorItem));
+                }
+
+                error = MapErrorItem(reader);
             }
 
-            return MapErrorItem(reader);
+            error.AssignedUsers = await GetAssignedUsersAsync(connection, id, cancellationToken);
+
+            return error;
         }
         catch (SqlException exception)
         {
@@ -232,53 +244,110 @@ public class ErrorService(
         }
     }
 
-    public async Task AssignUserAsync(
+    public async Task AssignUsersAsync(
         long id,
-        int? userId,
+        IReadOnlyCollection<int> userIds,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+        ArgumentNullException.ThrowIfNull(userIds);
 
-        if (userId.HasValue && userId.Value <= 0)
+        if (userIds.Any(userId => userId <= 0))
         {
-            throw new ArgumentOutOfRangeException(nameof(userId), userId, "Assigned user id must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(userIds), userIds, "Assigned user ids must be positive.");
         }
+
+        var distinctUserIds = userIds
+            .Distinct()
+            .OrderBy(userId => userId)
+            .ToList();
 
         try
         {
             await using var connection = new SqlConnection(ConnectionString);
             await connection.OpenAsync(cancellationToken);
 
-            await using var command = new SqlCommand(SqlAssignErrorUser, connection);
-            command.CommandType = CommandType.Text;
-            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
-            command.Parameters.Add(new SqlParameter("@assignedUserId", SqlDbType.Int)
-            {
-                Value = userId.HasValue ? userId.Value : DBNull.Value
-            });
-            command.Parameters.Add(new SqlParameter("@reviewStatus", SqlDbType.NVarChar, 20)
-            {
-                Value = ToDatabaseStatus(ErrorStatus.EnRevision)
-            });
-            command.Parameters.Add(new SqlParameter("@modifiedBy", SqlDbType.VarChar, 25)
-            {
-                Value = "MapcelErrorTracker"
-            });
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
-
-            if (rowsAffected == 0)
+            try
             {
-                throw new NotFoundException(nameof(ErrorItem));
+                await using (var updateCommand = new SqlCommand(SqlUpdateErrorAssignmentState, connection, transaction))
+                {
+                    updateCommand.CommandType = CommandType.Text;
+                    updateCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+                    updateCommand.Parameters.Add(new SqlParameter("@hasAssignedUsers", SqlDbType.Bit)
+                    {
+                        Value = distinctUserIds.Count > 0
+                    });
+                    updateCommand.Parameters.Add(new SqlParameter("@reviewStatus", SqlDbType.NVarChar, 20)
+                    {
+                        Value = ToDatabaseStatus(ErrorStatus.EnRevision)
+                    });
+                    updateCommand.Parameters.Add(new SqlParameter("@modifiedBy", SqlDbType.VarChar, 25)
+                    {
+                        Value = "MapcelErrorTracker"
+                    });
+
+                    var rowsAffected = await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                    if (rowsAffected == 0)
+                    {
+                        throw new NotFoundException(nameof(ErrorItem));
+                    }
+                }
+
+                await using (var deleteCommand = new SqlCommand(SqlDeleteAssignedUsers, connection, transaction))
+                {
+                    deleteCommand.CommandType = CommandType.Text;
+                    deleteCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+                    await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                foreach (var userId in distinctUserIds)
+                {
+                    await using var insertCommand = new SqlCommand(SqlInsertAssignedUser, connection, transaction);
+                    insertCommand.CommandType = CommandType.Text;
+                    insertCommand.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+                    insertCommand.Parameters.Add(new SqlParameter("@userId", SqlDbType.Int) { Value = userId });
+                    await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                throw;
             }
 
-            logger.LogInformation("Assigned programmer {UserId} to error {ErrorId}.", userId, id);
+            logger.LogInformation("Assigned {UserCount} programmers to error {ErrorId}.", distinctUserIds.Count, id);
         }
         catch (SqlException exception)
         {
-            logger.LogError(exception, "Unable to assign programmer {UserId} to error {ErrorId}.", userId, id);
+            logger.LogError(exception, "Unable to assign programmers to error {ErrorId}.", id);
             throw;
         }
+    }
+
+    private static async Task<List<ProgrammerUser>> GetAssignedUsersAsync(
+        SqlConnection connection,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var users = new List<ProgrammerUser>();
+
+        await using var command = new SqlCommand(SqlSelectAssignedUsersByErrorId, connection);
+        command.CommandType = CommandType.Text;
+        command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            users.Add(MapProgrammerUser(reader));
+        }
+
+        return users;
     }
 
     private async Task<List<ErrorItem>> GetRecentErrorsAsync(CancellationToken cancellationToken)
@@ -484,7 +553,6 @@ public class ErrorService(
         var lastSeen = GetNullableDateTime(reader, "err_FechaUlt") ?? firstSeen;
         var processedAt = GetNullableDateTime(reader, "err_Procesado");
         var enterpriseId = GetNullableInt32(reader, "err_IdEnterprise");
-        var assignedUserId = GetNullableInt32(reader, "err_ProgAsignado");
 
         return new ErrorItem
         {
@@ -500,8 +568,6 @@ public class ErrorService(
             FirstSeen = firstSeen,
             LastSeen = lastSeen,
             Company = enterpriseId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
-            AssignedUserId = assignedUserId,
-            AssignedUser = MapAssignedUser(reader),
             ExceptionMessage = GetNullableString(reader, "err_Exception_MstLast"),
             StackTrace = GetNullableString(reader, "err_Exception_StackTrace"),
             RequestPayload = GetNullableString(reader, "err_MsgBody"),
@@ -517,21 +583,14 @@ public class ErrorService(
         };
     }
 
-    private static ProgrammerUser? MapAssignedUser(SqlDataReader reader)
+    private static ProgrammerUser MapProgrammerUser(SqlDataReader reader)
     {
-        var assignedUserId = GetNullableInt32(reader, "assigned_prog_ID");
-
-        if (!assignedUserId.HasValue)
-        {
-            return null;
-        }
-
         return new ProgrammerUser
         {
-            Id = assignedUserId.Value,
-            Name = GetRequiredString(reader, "assigned_prog_nombre"),
-            TelegramId = GetNullableString(reader, "assigned_prog_telegram_id"),
-            CellPhone = GetNullableString(reader, "assigned_prog_celular")
+            Id = GetRequiredInt32(reader, "prog_ID"),
+            Name = GetRequiredString(reader, "prog_nombre"),
+            TelegramId = GetNullableString(reader, "prog_telegram_id"),
+            CellPhone = GetNullableString(reader, "prog_celular")
         };
     }
 
@@ -672,6 +731,15 @@ public class ErrorService(
         return reader.IsDBNull(ordinal) 
             ? throw new DataException($"Required database column {columnName} was null.") 
             : reader.GetInt64(ordinal);
+    }
+
+    private static int GetRequiredInt32(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : reader.GetInt32(ordinal);
     }
 
     private static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
