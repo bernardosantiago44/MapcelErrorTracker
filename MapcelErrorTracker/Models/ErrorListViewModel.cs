@@ -6,7 +6,6 @@ public class ErrorListQuery
     private const int MaxPageSize = 50;
 
     public string? Search { get; set; }
-    public string? Company { get; set; }
     public string? Program { get; set; }
     public string? Status { get; set; }
     public string? Priority { get; set; }
@@ -17,7 +16,6 @@ public class ErrorListQuery
 
     public bool HasFilters =>
         !string.IsNullOrWhiteSpace(Search) ||
-        !string.IsNullOrWhiteSpace(Company) ||
         !string.IsNullOrWhiteSpace(Program) ||
         !string.IsNullOrWhiteSpace(Status) ||
         !string.IsNullOrWhiteSpace(Priority);

@@ -292,12 +292,6 @@ public class ErrorService(
                 Contains(error.Description, search));
         }
 
-        if (!string.IsNullOrWhiteSpace(query.Company))
-        {
-            var company = query.Company.Trim();
-            filtered = filtered.Where(error => Contains(error.Company, company));
-        }
-
         if (!string.IsNullOrWhiteSpace(query.Program))
         {
             var program = query.Program.Trim();

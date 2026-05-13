@@ -27,7 +27,6 @@
         if (!clearFilters)
         {
             AddQueryValue(values, "search", q.Search);
-            AddQueryValue(values, "company", q.Company);
             AddQueryValue(values, "program", q.Program);
             AddQueryValue(values, "status", q.Status);
             AddQueryValue(values, "priority", q.Priority);
@@ -296,18 +295,7 @@
                     <div class="filters-grid">
                         <div class="field">
                             <label for="search">Búsqueda</label>
-                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo, empresa o mensaje" />
-                        </div>
-
-                        <div class="field">
-                            <label for="company">Empresa</label>
-                            <input id="company" name="company" type="search" value="@q.Company" list="company-options" placeholder="Todas" />
-                            <datalist id="company-options">
-                                @foreach (var company in Model.Companies)
-                                {
-                                    <option value="@company"></option>
-                                }
-                            </datalist>
+                            <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo o mensaje" />
                         </div>
 
                         <div class="field">
@@ -432,12 +420,6 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a href="@SortUrl(ErrorListSortFields.Company)" class="sort-link">
-                                        Empresa
-                                        <i data-lucide="@SortIcon(ErrorListSortFields.Company)"></i>
-                                    </a>
-                                </th>
-                                <th>
                                     <a href="@SortUrl(ErrorListSortFields.ErrorCode)" class="sort-link">
                                         Código
                                         <i data-lucide="@SortIcon(ErrorListSortFields.ErrorCode)"></i>
@@ -470,7 +452,6 @@
                                     <td data-label="Prioridad">
                                         <span class="badge @PriorityClass(error.Priority)">@PriorityLabel(error.Priority)</span>
                                     </td>
-                                    <td data-label="Empresa">@error.Company</td>
                                     <td data-label="Código">
                                         <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
                                     </td>
