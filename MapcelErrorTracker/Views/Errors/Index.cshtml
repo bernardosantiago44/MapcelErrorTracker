@@ -159,6 +159,22 @@
         return message[..maxLength] + "...";
     }
 
+    static string AssigneeInitials(ProgrammerUser user)
+    {
+        var parts = user.Name
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
+            return "?";
+
+        if (parts.Length == 1)
+            return parts[0].Length == 1
+                ? parts[0].ToUpper(CultureInfo.CurrentCulture)
+                : parts[0][..2].ToUpper(CultureInfo.CurrentCulture);
+
+        return string.Concat(parts[0][0], parts[^1][0]).ToUpper(CultureInfo.CurrentCulture);
+    }
+
     static bool Selected(string? current, object option) =>
         string.Equals(current, option.ToString(), StringComparison.OrdinalIgnoreCase);
 }
@@ -430,6 +446,7 @@
                                         <i data-lucide="@SortIcon(ErrorListSortFields.Occurrences)"></i> 
                                     </a> 
                                 </th> 
+                                <th class="assignees-header">Resp.</th>
                                 <th>Descripción</th>
                                 <th>
                                     <a href="@SortUrl(ErrorListSortFields.LastSeen)" class="sort-link">
@@ -458,6 +475,32 @@
                                     </td>
                                     <td data-label="Cont">
                                         <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
+                                    </td>
+                                    <td data-label="Responsables" class="assignees-cell">
+                                        @if (error.AssignedUsers.Count is 1 or 2)
+                                        {
+                                            <div class="assignee-stack" aria-label="@error.Assignee">
+                                                @foreach (var assignee in error.AssignedUsers)
+                                                {
+                                                    <span class="assignee-avatar">@AssigneeInitials(assignee)</span>
+                                                }
+                                            </div>
+                                        }
+                                        else if (error.AssignedUsers.Count >= 3)
+                                        {
+                                            <div class="assignee-stack assignee-stack-tooltip" tabindex="0" aria-label="@error.Assignee">
+                                                <span class="assignee-avatar assignee-count">@error.AssignedUsers.Count</span>
+                                                <div class="assignee-tooltip" role="tooltip">
+                                                    <strong>Responsables</strong>
+                                                    <ul>
+                                                        @foreach (var assignee in error.AssignedUsers)
+                                                        {
+                                                            <li>@assignee.Name</li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        }
                                     </td>
                                     <td data-label="Descripción" class="message-cell">@ShortMessage(error.Description)</td>
                                     <td data-label="Última vez">

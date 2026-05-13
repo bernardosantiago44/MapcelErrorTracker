@@ -84,6 +84,18 @@ public class ErrorService(
         WHERE a.[errorId] = @id
         ORDER BY p.[prog_nombre];
         """;
+    private const string SqlSelectAssignedUsersForErrors = """
+        SELECT a.[errorId],
+               p.[prog_ID],
+               p.[prog_nombre],
+               p.[prog_telegram_id],
+               p.[prog_celular]
+        FROM [MapaLocalizadorVisor].[dbo].[ErroresAsignaturas] AS a
+        INNER JOIN [MapaLocalizadorVisor].[dbo].[ErroresProgramadores] AS p
+            ON p.[prog_ID] = a.[programadorId]
+        WHERE a.[errorId] IN ({0})
+        ORDER BY a.[errorId], p.[prog_nombre];
+        """;
     private const string SqlUpdateErrorPriority = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Prioridad] = @priority,
@@ -125,7 +137,10 @@ public class ErrorService(
         try
         {
             var errors = await GetRecentErrorsAsync(cancellationToken);
-            return BuildListViewModel(errors, query);
+            var model = BuildListViewModel(errors, query);
+            await PopulateAssignedUsersAsync(model.Errors, cancellationToken);
+
+            return model;
         }
         catch (SqlException exception)
         {
@@ -368,6 +383,65 @@ public class ErrorService(
         }
 
         return errors;
+    }
+
+    private async Task PopulateAssignedUsersAsync(
+        IReadOnlyList<ErrorItem> errors,
+        CancellationToken cancellationToken)
+    {
+        if (errors.Count == 0)
+        {
+            return;
+        }
+
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await PopulateAssignedUsersAsync(connection, errors, cancellationToken);
+    }
+
+    private static async Task PopulateAssignedUsersAsync(
+        SqlConnection connection,
+        IReadOnlyList<ErrorItem> errors,
+        CancellationToken cancellationToken)
+    {
+        if (errors.Count == 0)
+        {
+            return;
+        }
+
+        var parameters = errors
+            .Select((error, index) => new
+            {
+                Name = $"@id{index}",
+                error.Id
+            })
+            .ToList();
+        var sql = string.Format(
+            CultureInfo.InvariantCulture,
+            SqlSelectAssignedUsersForErrors,
+            string.Join(", ", parameters.Select(parameter => parameter.Name)));
+        var errorsById = errors.ToDictionary(error => error.Id);
+
+        await using var command = new SqlCommand(sql, connection);
+        command.CommandType = CommandType.Text;
+
+        foreach (var parameter in parameters)
+        {
+            command.Parameters.Add(new SqlParameter(parameter.Name, SqlDbType.BigInt) { Value = parameter.Id });
+        }
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var errorId = GetRequiredInt64(reader, "errorId");
+
+            if (errorsById.TryGetValue(errorId, out var error))
+            {
+                error.AssignedUsers.Add(MapProgrammerUser(reader));
+            }
+        }
     }
 
     private static ErrorListViewModel BuildListViewModel(
