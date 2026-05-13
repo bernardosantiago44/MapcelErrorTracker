@@ -32,7 +32,10 @@ public class ErrorItem
     public DateTime LastSeen { get; set; }
     public string ExceptionMessage { get; set; } = string.Empty;
     public string StackTrace { get; set; } = string.Empty;
-    public string Assignee { get; set; } = string.Empty;
+    public int? AssignedUserId { get; set; }
+    public ProgrammerUser? AssignedUser { get; set; }
+    public List<ProgrammerUser> AvailableAssignees { get; set; } = new();
+    public string Assignee => AssignedUser?.Name ?? string.Empty;
     public bool IsSilenced { get; set; }
     public List<ActivityLogEntry> ActivityLog { get; set; } = new();
 

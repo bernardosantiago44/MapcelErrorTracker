@@ -7,6 +7,7 @@ namespace MapcelErrorTracker.Controllers;
 
 public class ErrorsController(
     IErrorService service,
+    IUsersService usersService,
     ILogger<ErrorsController> logger) : Controller
 {
     public async Task<IActionResult> Index(ErrorListQuery query, CancellationToken cancellationToken)
@@ -29,6 +30,7 @@ public class ErrorsController(
         try
         {
             var error = await service.GetByIdAsync(id, cancellationToken);
+            error.AvailableAssignees = (await usersService.GetAllAsync(cancellationToken)).ToList();
             return View(error);
         }
         catch (NotFoundException)
@@ -162,6 +164,36 @@ public class ErrorsController(
         catch (Exception exception)
         {
             logger.LogError(exception, "Unable to update priority for error {ErrorId}.", id);
+            return StatusCode(500, "Internal server error");
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AssignUser(long id, int? userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await service.AssignUserAsync(id, userId, cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Assignment update failed because error {ErrorId} does not exist.", id);
+            return NotFound();
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Invalid assignment value {UserId} received for error {ErrorId}.",
+                userId,
+                id);
+            return BadRequest("Invalid assignment.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to assign programmer {UserId} to error {ErrorId}.", userId, id);
             return StatusCode(500, "Internal server error");
         }
 

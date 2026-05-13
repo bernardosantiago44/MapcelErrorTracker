@@ -17,6 +17,7 @@ builder.Services.AddSerilog((services, loggerConfiguration) =>
 builder.Services.AddControllersWithViews();
 builder.Services.AddSingleton<CssProvider>();
 builder.Services.AddScoped<IErrorService, ErrorService>();
+builder.Services.AddScoped<IUsersService, UsersService>();
 
 var app = builder.Build();
 

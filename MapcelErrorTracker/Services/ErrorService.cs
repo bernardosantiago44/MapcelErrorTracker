@@ -13,65 +13,79 @@ public class ErrorService(
     : BaseService(configuration, logger), IErrorService
 {
     private const string SqlSelectRecentErrors = """
-        SELECT [err_ID],
-               [err_CodigoError],
-               [err_DescripcioError],
-               [err_Programa_Nombre],
-               [err_Programa_Modulo],
-               [err_Programa_Proceso],
-               [err_Prioridad],
-               [err_FechaGen],
-               [err_FechaUlt],
-               [err_Contador],
-               [err_IdEnterprise],
-               [err_Exception_MstLast],
-               [err_Exception_StackTrace],
-               [err_ErrorAlEnviar],
-               [err_MsgBody],
-               [err_MsgSubject],
-               [err_Procesado],
-               [err_UbicacionProgrm],
-               [err_ComentariosAdic],
-               [err_NombreModifico],
-               [err_NumeroFolio],
-               [err_FirstNotif],
-               [err_LastNotif],
-               [err_NumAviso],
-               [err_MailSended],
-               [err_Status]
-        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
-        WHERE [err_Procesado] IS NULL
-           OR ([err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE([err_FechaUlt], [err_FechaGen]), GETDATE()) <= 1);
+        SELECT e.[err_ID],
+               e.[err_CodigoError],
+               e.[err_DescripcioError],
+               e.[err_Programa_Nombre],
+               e.[err_Programa_Modulo],
+               e.[err_Programa_Proceso],
+               e.[err_Prioridad],
+               e.[err_FechaGen],
+               e.[err_FechaUlt],
+               e.[err_Contador],
+               e.[err_IdEnterprise],
+               e.[err_Exception_MstLast],
+               e.[err_Exception_StackTrace],
+               e.[err_ErrorAlEnviar],
+               e.[err_MsgBody],
+               e.[err_MsgSubject],
+               e.[err_Procesado],
+               e.[err_UbicacionProgrm],
+               e.[err_ComentariosAdic],
+               e.[err_NombreModifico],
+               e.[err_NumeroFolio],
+               e.[err_FirstNotif],
+               e.[err_LastNotif],
+               e.[err_NumAviso],
+               e.[err_MailSended],
+               e.[err_Status],
+               e.[err_ProgAsignado],
+               p.[prog_ID] AS [assigned_prog_ID],
+               p.[prog_nombre] AS [assigned_prog_nombre],
+               p.[prog_telegram_id] AS [assigned_prog_telegram_id],
+               p.[prog_celular] AS [assigned_prog_celular]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
+        LEFT JOIN [MapaLocalizadorVisor].[dbo].[ErroresProgramadores] AS p
+            ON p.[prog_ID] = e.[err_ProgAsignado]
+        WHERE e.[err_Procesado] IS NULL
+           OR (e.[err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE(e.[err_FechaUlt], e.[err_FechaGen]), GETDATE()) <= 1);
         """;
     private const string SqlSelectErrorById = """
-        SELECT [err_ID],
-               [err_CodigoError],
-               [err_DescripcioError],
-               [err_Programa_Nombre],
-               [err_Programa_Modulo],
-               [err_Programa_Proceso],
-               [err_Prioridad],
-               [err_FechaGen],
-               [err_FechaUlt],
-               [err_Contador],
-               [err_IdEnterprise],
-               [err_Exception_MstLast],
-               [err_Exception_StackTrace],
-               [err_ErrorAlEnviar],
-               [err_MsgBody],
-               [err_MsgSubject],
-               [err_Procesado],
-               [err_UbicacionProgrm],
-               [err_ComentariosAdic],
-               [err_NombreModifico],
-               [err_NumeroFolio],
-               [err_FirstNotif],
-               [err_LastNotif],
-               [err_NumAviso],
-               [err_MailSended],
-               [err_Status]
-        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema]
-        WHERE [err_ID] = @id;
+        SELECT e.[err_ID],
+               e.[err_CodigoError],
+               e.[err_DescripcioError],
+               e.[err_Programa_Nombre],
+               e.[err_Programa_Modulo],
+               e.[err_Programa_Proceso],
+               e.[err_Prioridad],
+               e.[err_FechaGen],
+               e.[err_FechaUlt],
+               e.[err_Contador],
+               e.[err_IdEnterprise],
+               e.[err_Exception_MstLast],
+               e.[err_Exception_StackTrace],
+               e.[err_ErrorAlEnviar],
+               e.[err_MsgBody],
+               e.[err_MsgSubject],
+               e.[err_Procesado],
+               e.[err_UbicacionProgrm],
+               e.[err_ComentariosAdic],
+               e.[err_NombreModifico],
+               e.[err_NumeroFolio],
+               e.[err_FirstNotif],
+               e.[err_LastNotif],
+               e.[err_NumAviso],
+               e.[err_MailSended],
+               e.[err_Status],
+               e.[err_ProgAsignado],
+               p.[prog_ID] AS [assigned_prog_ID],
+               p.[prog_nombre] AS [assigned_prog_nombre],
+               p.[prog_telegram_id] AS [assigned_prog_telegram_id],
+               p.[prog_celular] AS [assigned_prog_celular]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
+        LEFT JOIN [MapaLocalizadorVisor].[dbo].[ErroresProgramadores] AS p
+            ON p.[prog_ID] = e.[err_ProgAsignado]
+        WHERE e.[err_ID] = @id;
         """;
     private const string SqlUpdateErrorPriority = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
@@ -82,6 +96,16 @@ public class ErrorService(
     private const string SqlUpdateErrorStatus = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Status] = @status,
+            [err_NombreModifico] = @modifiedBy
+        WHERE [err_ID] = @id;
+        """;
+    private const string SqlAssignErrorUser = """
+        UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
+        SET [err_ProgAsignado] = @assignedUserId,
+            [err_Status] = CASE
+                WHEN @assignedUserId IS NULL THEN [err_Status]
+                ELSE @reviewStatus
+            END,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
         """;
@@ -204,6 +228,55 @@ public class ErrorService(
         catch (SqlException exception)
         {
             logger.LogError(exception, "Unable to update priority for error {ErrorId}.", id);
+            throw;
+        }
+    }
+
+    public async Task AssignUserAsync(
+        long id,
+        int? userId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+
+        if (userId.HasValue && userId.Value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(userId), userId, "Assigned user id must be positive.");
+        }
+
+        try
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = new SqlCommand(SqlAssignErrorUser, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+            command.Parameters.Add(new SqlParameter("@assignedUserId", SqlDbType.Int)
+            {
+                Value = userId.HasValue ? userId.Value : DBNull.Value
+            });
+            command.Parameters.Add(new SqlParameter("@reviewStatus", SqlDbType.NVarChar, 20)
+            {
+                Value = ToDatabaseStatus(ErrorStatus.EnRevision)
+            });
+            command.Parameters.Add(new SqlParameter("@modifiedBy", SqlDbType.VarChar, 25)
+            {
+                Value = "MapcelErrorTracker"
+            });
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+
+            if (rowsAffected == 0)
+            {
+                throw new NotFoundException(nameof(ErrorItem));
+            }
+
+            logger.LogInformation("Assigned programmer {UserId} to error {ErrorId}.", userId, id);
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to assign programmer {UserId} to error {ErrorId}.", userId, id);
             throw;
         }
     }
@@ -411,6 +484,7 @@ public class ErrorService(
         var lastSeen = GetNullableDateTime(reader, "err_FechaUlt") ?? firstSeen;
         var processedAt = GetNullableDateTime(reader, "err_Procesado");
         var enterpriseId = GetNullableInt32(reader, "err_IdEnterprise");
+        var assignedUserId = GetNullableInt32(reader, "err_ProgAsignado");
 
         return new ErrorItem
         {
@@ -426,6 +500,8 @@ public class ErrorService(
             FirstSeen = firstSeen,
             LastSeen = lastSeen,
             Company = enterpriseId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            AssignedUserId = assignedUserId,
+            AssignedUser = MapAssignedUser(reader),
             ExceptionMessage = GetNullableString(reader, "err_Exception_MstLast"),
             StackTrace = GetNullableString(reader, "err_Exception_StackTrace"),
             RequestPayload = GetNullableString(reader, "err_MsgBody"),
@@ -438,6 +514,24 @@ public class ErrorService(
             NotificationFrequencyMinutes = 0,
             IsSilenced = false,
             ActivityLog = BuildActivityLog(firstSeen, lastSeen, processedAt)
+        };
+    }
+
+    private static ProgrammerUser? MapAssignedUser(SqlDataReader reader)
+    {
+        var assignedUserId = GetNullableInt32(reader, "assigned_prog_ID");
+
+        if (!assignedUserId.HasValue)
+        {
+            return null;
+        }
+
+        return new ProgrammerUser
+        {
+            Id = assignedUserId.Value,
+            Name = GetRequiredString(reader, "assigned_prog_nombre"),
+            TelegramId = GetNullableString(reader, "assigned_prog_telegram_id"),
+            CellPhone = GetNullableString(reader, "assigned_prog_celular")
         };
     }
 
