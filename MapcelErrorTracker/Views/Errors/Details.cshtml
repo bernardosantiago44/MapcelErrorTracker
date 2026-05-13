@@ -78,7 +78,7 @@
                     }
                 </div>
                 <h1 class="text-xl font-bold font-mono text-gray-900 mb-1">@Model.Code</h1>
-                <p class="text-sm text-gray-600 leading-relaxed mb-3">@Model.Description</p>
+                <p class="text-sm text-gray-600 leading-relaxed mb-3">@Model.Description</p> <!-- TODO: Trim to prevent text overflow -->
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                     <span class="flex items-center gap-1"><i data-lucide="building-2" style="width:12px;height:12px"></i> @Model.Company</span>
                     <span class="flex items-center gap-1"><i data-lucide="code-2" style="width:12px;height:12px"></i> @Model.Program</span>
