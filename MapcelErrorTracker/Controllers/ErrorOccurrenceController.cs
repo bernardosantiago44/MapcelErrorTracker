@@ -166,16 +166,14 @@ public sealed class ErrorOccurrenceController(
         }
         else if (!IsSupportedBucket(bucket))
         {
-            errors["bucket"] = ["bucket must be 'hour' or 'day'."];
+            errors["bucket"] = ["bucket must be 'minute', 'hour', 'day', or 'week'."];
         }
 
         if (from is null ||
             to is null ||
             string.IsNullOrWhiteSpace(bucket) ||
             !IsSupportedBucket(bucket)) return errors;
-        var totalBuckets = string.Equals(bucket, "hour", StringComparison.OrdinalIgnoreCase)
-            ? Math.Ceiling((to.Value - from.Value).TotalHours)
-            : Math.Ceiling((to.Value - from.Value).TotalDays);
+        var totalBuckets = GetTotalBuckets(from.Value, to.Value, bucket);
 
         if (totalBuckets > IErrorOccurrenceMetricService.MaxHistogramBuckets)
         {
@@ -192,7 +190,28 @@ public sealed class ErrorOccurrenceController(
 
     private static bool IsSupportedBucket(string bucket)
     {
-        return string.Equals(bucket, "hour", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(bucket, "day", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(bucket, "minute", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(bucket, "hour", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(bucket, "day", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(bucket, "week", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static double GetTotalBuckets(DateTime from, DateTime to, string bucket)
+    {
+        var range = to - from;
+
+        if (string.Equals(bucket, "minute", StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Ceiling(range.TotalMinutes);
+        }
+
+        if (string.Equals(bucket, "hour", StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Ceiling(range.TotalHours);
+        }
+
+        return string.Equals(bucket, "day", StringComparison.OrdinalIgnoreCase) 
+            ? Math.Ceiling(range.TotalDays)  // if bucket is days
+            : Math.Ceiling(range.TotalDays / 7d); // if bucket is week (fallback case)
     }
 }

@@ -55,6 +55,23 @@ public sealed class ErrorOccurrenceMetricService(
         GROUP BY h.[errh_err_ID];
         """;
 
+    private const string SqlSelectMinuteHistogram = """
+        SELECT CAST(CASE WHEN EXISTS (
+            SELECT 1
+            FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS existing
+            WHERE existing.[errh_err_ID] = @errorId
+        ) THEN 1 ELSE 0 END AS bit) AS [HasOccurrences];
+
+        SELECT CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 60) AS [BucketIndex],
+               COUNT_BIG(*) AS [Occurrences]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
+        WHERE h.[errh_err_ID] = @errorId
+          AND h.[errh_Created] >= @from
+          AND h.[errh_Created] < @to
+        GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 60)
+        ORDER BY [BucketIndex];
+        """;
+
     private const string SqlSelectHourlyHistogram = """
         SELECT CAST(CASE WHEN EXISTS (
             SELECT 1
@@ -86,6 +103,23 @@ public sealed class ErrorOccurrenceMetricService(
           AND h.[errh_Created] >= @from
           AND h.[errh_Created] < @to
         GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 86400)
+        ORDER BY [BucketIndex];
+        """;
+
+    private const string SqlSelectWeeklyHistogram = """
+        SELECT CAST(CASE WHEN EXISTS (
+            SELECT 1
+            FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS existing
+            WHERE existing.[errh_err_ID] = @errorId
+        ) THEN 1 ELSE 0 END AS bit) AS [HasOccurrences];
+
+        SELECT CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 604800) AS [BucketIndex],
+               COUNT_BIG(*) AS [Occurrences]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
+        WHERE h.[errh_err_ID] = @errorId
+          AND h.[errh_Created] >= @from
+          AND h.[errh_Created] < @to
+        GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 604800)
         ORDER BY [BucketIndex];
         """;
 
@@ -186,7 +220,14 @@ public sealed class ErrorOccurrenceMetricService(
 
         var normalizedBucket = NormalizeBucket(bucket);
         var bucketCount = GetBucketCount(from, to, normalizedBucket);
-        var sql = normalizedBucket == "hour" ? SqlSelectHourlyHistogram : SqlSelectDailyHistogram;
+        var sql = normalizedBucket switch
+        {
+            "minute" => SqlSelectMinuteHistogram,
+            "hour" => SqlSelectHourlyHistogram,
+            "day" => SqlSelectDailyHistogram,
+            "week" => SqlSelectWeeklyHistogram,
+            _ => throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Unsupported bucket.")
+        };
         var countsByBucket = new Dictionary<int, long>();
 
         try
@@ -298,9 +339,9 @@ public sealed class ErrorOccurrenceMetricService(
     {
         var normalized = bucket.Trim().ToLowerInvariant();
 
-        return normalized is "hour" or "day"
+        return normalized is "minute" or "hour" or "day" or "week"
             ? normalized
-            : throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Bucket must be 'hour' or 'day'.");
+            : throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Bucket must be 'minute', 'hour', 'day', or 'week'.");
     }
 
     private static int GetBucketCount(DateTime from, DateTime to, string bucket)
@@ -310,9 +351,7 @@ public sealed class ErrorOccurrenceMetricService(
             throw new ArgumentOutOfRangeException(nameof(to), to, "'to' must be later than 'from'.");
         }
 
-        var totalBuckets = bucket == "hour"
-            ? Math.Ceiling((to - from).TotalHours)
-            : Math.Ceiling((to - from).TotalDays);
+        var totalBuckets = GetTotalBuckets(from, to, bucket);
 
         if (totalBuckets > IErrorOccurrenceMetricService.MaxHistogramBuckets)
         {
@@ -336,8 +375,8 @@ public sealed class ErrorOccurrenceMetricService(
 
         for (var index = 0; index < bucketCount; index++)
         {
-            var bucketFrom = bucket == "hour" ? from.AddHours(index) : from.AddDays(index);
-            var bucketTo = bucket == "hour" ? bucketFrom.AddHours(1) : bucketFrom.AddDays(1);
+            var bucketFrom = AddBuckets(from, bucket, index);
+            var bucketTo = AddBuckets(bucketFrom, bucket, 1);
 
             buckets.Add(new ErrorOccurrenceHistogramBucketDto
             {
@@ -348,5 +387,31 @@ public sealed class ErrorOccurrenceMetricService(
         }
 
         return buckets;
+    }
+
+    private static double GetTotalBuckets(DateTime from, DateTime to, string bucket)
+    {
+        var range = to - from;
+
+        return bucket switch
+        {
+            "minute" => Math.Ceiling(range.TotalMinutes),
+            "hour" => Math.Ceiling(range.TotalHours),
+            "day" => Math.Ceiling(range.TotalDays),
+            "week" => Math.Ceiling(range.TotalDays / 7d),
+            _ => throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Unsupported bucket.")
+        };
+    }
+
+    private static DateTime AddBuckets(DateTime value, string bucket, int count)
+    {
+        return bucket switch
+        {
+            "minute" => value.AddMinutes(count),
+            "hour" => value.AddHours(count),
+            "day" => value.AddDays(count),
+            "week" => value.AddDays(count * 7),
+            _ => throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Unsupported bucket.")
+        };
     }
 }
