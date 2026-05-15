@@ -42,3 +42,10 @@ public sealed record ErrorOccurrenceHistogramBucketDto
     public DateTime To { get; init; }
     public long Occurrences { get; init; }
 }
+
+public sealed record OccurrenceTrendChartViewModel
+{
+    public long ErrorId { get; init; }
+    public DateTime FirstSeen { get; init; }
+    public DateTime LastSeen { get; init; }
+}

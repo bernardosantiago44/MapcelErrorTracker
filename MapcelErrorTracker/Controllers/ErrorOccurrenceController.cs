@@ -166,7 +166,7 @@ public sealed class ErrorOccurrenceController(
         }
         else if (!IsSupportedBucket(bucket))
         {
-            errors["bucket"] = ["bucket must be 'minute', 'hour', 'day', or 'week'."];
+            errors["bucket"] = ["bucket must be 'auto', 'minute', 'hour', 'day', or 'week'."];
         }
 
         if (from is null ||
@@ -193,25 +193,40 @@ public sealed class ErrorOccurrenceController(
         return string.Equals(bucket, "minute", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(bucket, "hour", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(bucket, "day", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(bucket, "week", StringComparison.OrdinalIgnoreCase);
+               string.Equals(bucket, "week", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(bucket, "auto", StringComparison.OrdinalIgnoreCase);
     }
 
     private static double GetTotalBuckets(DateTime from, DateTime to, string bucket)
     {
         var range = to - from;
+        var normalizedBucket = string.Equals(bucket, "auto", StringComparison.OrdinalIgnoreCase)
+            ? ResolveAutoBucket(from, to)
+            : bucket.ToLowerInvariant();
 
-        if (string.Equals(bucket, "minute", StringComparison.OrdinalIgnoreCase))
+        return normalizedBucket switch
         {
-            return Math.Ceiling(range.TotalMinutes);
+            "minute" => Math.Ceiling(range.TotalMinutes),
+            "hour" => Math.Ceiling(range.TotalHours),
+            "day" => Math.Ceiling(range.TotalDays),
+            _ => Math.Ceiling(range.TotalDays / 7d)
+        };
+    }
+
+    private static string ResolveAutoBucket(DateTime from, DateTime to)
+    {
+        var range = to - from;
+
+        if (range.TotalHours <= 6)
+        {
+            return "minute";
         }
 
-        if (string.Equals(bucket, "hour", StringComparison.OrdinalIgnoreCase))
+        if (range.TotalHours <= 48)
         {
-            return Math.Ceiling(range.TotalHours);
+            return "hour";
         }
 
-        return string.Equals(bucket, "day", StringComparison.OrdinalIgnoreCase) 
-            ? Math.Ceiling(range.TotalDays)  // if bucket is days
-            : Math.Ceiling(range.TotalDays / 7d); // if bucket is week (fallback case)
+        return range.TotalDays <= 90 ? "day" : "week";
     }
 }

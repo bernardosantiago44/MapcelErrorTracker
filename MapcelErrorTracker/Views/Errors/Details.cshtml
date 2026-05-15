@@ -427,6 +427,13 @@
             </div>
         </section>
 
+        @await Html.PartialAsync("_OccurrenceTrendChart", new OccurrenceTrendChartViewModel
+        {
+            ErrorId = Model.Id,
+            FirstSeen = Model.FirstSeen,
+            LastSeen = Model.LastSeen
+        })
+
         <!-- Section 2: Timeline (expanded by default, collapsible) -->
         <section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" x-data="{ open: true }">
             <button @@click="open = !open" class="w-full px-5 py-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors text-left">
@@ -836,4 +843,6 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="~/js/occurrence-trend.js" asp-append-version="true"></script>
 }

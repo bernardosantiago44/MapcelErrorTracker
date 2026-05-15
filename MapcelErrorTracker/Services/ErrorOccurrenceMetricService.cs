@@ -7,8 +7,7 @@ namespace MapcelErrorTracker.Services;
 
 public sealed class ErrorOccurrenceMetricService(
     IConfiguration configuration,
-    ILogger<ErrorOccurrenceMetricService> logger,
-    ErrorHeatClassifier classifier)
+    ILogger<ErrorOccurrenceMetricService> logger)
     : BaseService(configuration, logger), IErrorOccurrenceMetricService
 {
     private const string SqlSelectSummaryPage = """
@@ -218,7 +217,7 @@ public sealed class ErrorOccurrenceMetricService(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(errorId);
 
-        var normalizedBucket = NormalizeBucket(bucket);
+        var normalizedBucket = NormalizeBucket(bucket, from, to);
         var bucketCount = GetBucketCount(from, to, normalizedBucket);
         var sql = normalizedBucket switch
         {
@@ -279,15 +278,15 @@ public sealed class ErrorOccurrenceMetricService(
         var occurrencesLast1H = reader.GetInt64(reader.GetOrdinal("OccurrencesLast1H"));
         var occurrencesLast24H = reader.GetInt64(reader.GetOrdinal("OccurrencesLast24H"));
         var occurrencesLast7D = reader.GetInt64(reader.GetOrdinal("OccurrencesLast7D"));
-        var classification = classifier.Classify(
+        var classification = ErrorHeatClassifier.Classify(
             new ErrorHeatClassifierInput
             {
                 FirstSeenAt = firstOccurrenceAt,
                 LastSeenAt = lastOccurrenceAt,
                 TotalOccurrences = totalOccurrences,
-                OccurrencesLast1h = occurrencesLast1H,
-                OccurrencesLast24h = occurrencesLast24H,
-                OccurrencesLast7d = occurrencesLast7D
+                OccurrencesLast1H = occurrencesLast1H,
+                OccurrencesLast24H = occurrencesLast24H,
+                OccurrencesLast7D = occurrencesLast7D
             },
             now);
 
@@ -335,13 +334,35 @@ public sealed class ErrorOccurrenceMetricService(
         }
     }
 
-    private static string NormalizeBucket(string bucket)
+    private static string NormalizeBucket(string bucket, DateTime from, DateTime to)
     {
         var normalized = bucket.Trim().ToLowerInvariant();
 
+        if (normalized == "auto")
+        {
+            return ResolveAutoBucket(from, to);
+        }
+
         return normalized is "minute" or "hour" or "day" or "week"
             ? normalized
-            : throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Bucket must be 'minute', 'hour', 'day', or 'week'.");
+            : throw new ArgumentOutOfRangeException(nameof(bucket), bucket, "Bucket must be 'auto', 'minute', 'hour', 'day', or 'week'.");
+    }
+
+    private static string ResolveAutoBucket(DateTime from, DateTime to)
+    {
+        var range = to - from;
+
+        if (range.TotalHours <= 6)
+        {
+            return "minute";
+        }
+
+        if (range.TotalHours <= 48)
+        {
+            return "hour";
+        }
+
+        return range.TotalDays <= 90 ? "day" : "week";
     }
 
     private static int GetBucketCount(DateTime from, DateTime to, string bucket)

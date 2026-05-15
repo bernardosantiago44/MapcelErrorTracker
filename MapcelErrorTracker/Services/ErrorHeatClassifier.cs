@@ -7,9 +7,9 @@ public sealed record ErrorHeatClassifierInput
     public DateTime FirstSeenAt { get; init; }
     public DateTime LastSeenAt { get; init; }
     public long TotalOccurrences { get; init; }
-    public long OccurrencesLast1h { get; init; }
-    public long OccurrencesLast24h { get; init; }
-    public long OccurrencesLast7d { get; init; }
+    public long OccurrencesLast1H { get; init; }
+    public long OccurrencesLast24H { get; init; }
+    public long OccurrencesLast7D { get; init; }
 }
 
 public sealed record ErrorHeatClassification
@@ -27,16 +27,16 @@ public sealed class ErrorHeatClassifier
     private const double HighPriorityThreshold = 50;
     private const double MediumPriorityThreshold = 20;
 
-    public ErrorHeatClassification Classify(ErrorHeatClassifierInput input, DateTime now)
+    public static ErrorHeatClassification Classify(ErrorHeatClassifierInput input, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(input);
 
         var ageHours = Math.Max(0, (now - input.FirstSeenAt).TotalHours);
         var freshnessAge = now - input.LastSeenAt;
         var frequencyScore =
-            input.OccurrencesLast1h * 3d +
-            input.OccurrencesLast24h +
-            input.OccurrencesLast7d * 0.25d;
+            input.OccurrencesLast1H * 3d +
+            input.OccurrencesLast24H +
+            input.OccurrencesLast7D * 0.25d;
         var freshnessScore = freshnessAge.TotalMinutes switch
         {
             <= 15 => 30,
