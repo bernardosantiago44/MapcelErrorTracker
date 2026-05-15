@@ -86,7 +86,7 @@
 <div class="flex flex-col lg:flex-row gap-6 px-4 sm:px-6 py-6 max-w-screen-2xl mx-auto">
 
     <!-- ==================== LEFT COLUMN: Sticky summary ==================== -->
-    <aside class="w-full lg:w-96 lg:flex-shrink-0">
+    <aside class="w-full lg:w-96 lg:shrink-0">
         <div class="lg:sticky lg:top-4 space-y-4">
 
             <!-- 1. Incident header -->
@@ -169,13 +169,13 @@
                         var isSelected = assignedUserIds.Contains(user.Id);
                         <label class="block cursor-pointer">
                             <div class="flex items-center gap-3 rounded-lg border p-3 transition-colors @AssigneeCardClass(isSelected)">
-                                <input type="checkbox" name="userIds" value="@user.Id" class="h-5 w-5 flex-shrink-0" checked="@(isSelected ? "checked" : null)"/>
+                                <input type="checkbox" name="userIds" value="@user.Id" class="h-5 w-5 shrink-0" checked="@(isSelected ? "checked" : null)"/>
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center justify-between gap-2">
                                         <p class="text-sm font-semibold text-gray-800 truncate">@user.Name</p>
                                         @if (isSelected)
                                         {
-                                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-teal-100 text-teal-700 flex-shrink-0">Asignado</span>
+                                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-teal-100 text-teal-700 shrink-0">Asignado</span>
                                         }
                                     </div>
                                     <p class="text-xs text-gray-500 truncate">@AssignmentContact(user)</p>
@@ -457,7 +457,7 @@
                                             <span class="text-gray-500 ml-1">@entry.Message</span>
                                         </p>
                                     </div>
-                                    <time class="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">@FormatDateShort(entry.Timestamp)</time>
+                                    <time class="text-xs text-gray-400 whitespace-nowrap shrink-0">@FormatDateShort(entry.Timestamp)</time>
                                 </div>
                             </div>
                         }
@@ -545,7 +545,7 @@
                         </div>
                         <pre id="stack-trace-content"
                              class="bg-gray-900 text-gray-300 rounded-lg p-4 text-xs font-mono overflow-auto whitespace-pre-wrap break-all transition-all"
-                             x-bind:class="stExpanded ? 'max-h-[600px]' : 'max-h-28'"
+                             x-bind:class="stExpanded ? 'max-h-150' : 'max-h-28'"
                              style="line-height: 1.6">@Model.StackTrace</pre>
                     </div>
                 }
@@ -671,7 +671,7 @@
                             @foreach (var entry in Model.ActivityLog.OrderByDescending(a => a.Timestamp).Take(3))
                             {
                                 <div class="flex items-center gap-2 text-sm">
-                                    <span class="w-1.5 h-1.5 bg-teal-500 rounded-full flex-shrink-0"></span>
+                                    <span class="w-1.5 h-1.5 bg-teal-500 rounded-full shrink-0"></span>
                                     <span class="text-gray-600">
                                         <span class="font-medium text-gray-800">@entry.User</span> @entry.Message
                                     </span>
@@ -737,7 +737,7 @@
                             @foreach (var contact in Model.NotificationContacts)
                             {
                                 <div class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm">
-                                    <div class="w-7 h-7 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                    <div class="w-7 h-7 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
                                         @contact.Name[0]
                                     </div>
                                     <div>
