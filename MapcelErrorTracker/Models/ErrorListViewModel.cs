@@ -40,6 +40,7 @@ public static class ErrorListSortFields
     public const string Company = "company";
     public const string ErrorCode = "code";
     public const string Occurrences = "occurrences";
+    public const string Importance = "importance";
     public const string FirstSeen = "firstSeen";
     public const string LastSeen = "lastSeen";
 
@@ -50,6 +51,7 @@ public static class ErrorListSortFields
         Company,
         ErrorCode,
         Occurrences,
+        Importance,
         FirstSeen,
         LastSeen
     };

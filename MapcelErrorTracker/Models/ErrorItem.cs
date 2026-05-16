@@ -28,6 +28,7 @@ public class ErrorItem
     public ErrorPriority Priority { get; init; }
     public ErrorStatus Status { get; init; }
     public int Occurrences { get; init; }
+    public double HeatScore { get; set; }
     public DateTime FirstSeen { get; init; }
     public DateTime LastSeen { get; init; }
     public string ExceptionMessage { get; init; } = string.Empty;

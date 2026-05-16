@@ -46,6 +46,7 @@
     bool DefaultsDescending(string sortBy) =>
         sortBy is ErrorListSortFields.Priority or
             ErrorListSortFields.Occurrences or
+            ErrorListSortFields.Importance or
             ErrorListSortFields.FirstSeen or
             ErrorListSortFields.LastSeen;
 
@@ -365,6 +366,10 @@
                                 <i data-lucide="x"></i>
                                 Limpiar
                             </a>
+                            <a href="@BuildUrl(sortBy: ErrorListSortFields.Importance, sortDirection: "desc", page: 1)" class="btn sort-link">
+                                Importancia
+                                <i data-lucide="@SortIcon(ErrorListSortFields.Importance)"></i>
+                            </a>
                         </div>
                     </div>
                 </form>
@@ -409,13 +414,15 @@
                         <span aria-hidden="true"> | </span>
                         Tamaño <strong>@Model.PageSize</strong>
                     </p>
-                    <p>
-                        Mostrando <strong>@Model.FirstRecord-@Model.LastRecord</strong> de <strong>@Model.FilteredRecords</strong>
-                        @if (Model.FilteredRecords != Model.TotalRecords)
-                        {
-                            <span>filtrados de <strong>@Model.TotalRecords</strong> totales</span>
-                        }
-                    </p>
+                    <div class="table-toolbar-meta">
+                        <p>
+                            Mostrando <strong>@Model.FirstRecord-@Model.LastRecord</strong> de <strong>@Model.FilteredRecords</strong>
+                            @if (Model.FilteredRecords != Model.TotalRecords)
+                            {
+                                <span>filtrados de <strong>@Model.TotalRecords</strong> totales</span>
+                            }
+                        </p>
+                    </div>
                 </div>
 
                 <div class="table-scroll">

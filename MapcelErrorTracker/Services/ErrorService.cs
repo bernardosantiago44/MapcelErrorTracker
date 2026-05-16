@@ -96,6 +96,18 @@ public class ErrorService(
         WHERE a.[errorId] IN ({0})
         ORDER BY a.[errorId], p.[prog_nombre];
         """;
+    private const string SqlSelectOccurrenceMetricsForErrors = """
+        SELECT h.[errh_err_ID] AS [ErrorId],
+               MIN(h.[errh_Created]) AS [FirstOccurrenceAt],
+               MAX(h.[errh_Created]) AS [LastOccurrenceAt],
+               COUNT_BIG(*) AS [TotalOccurrences],
+               SUM(CASE WHEN h.[errh_Created] >= @oneHourAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast1H],
+               SUM(CASE WHEN h.[errh_Created] >= @twentyFourHoursAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast24H],
+               SUM(CASE WHEN h.[errh_Created] >= @sevenDaysAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast7D]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
+        WHERE h.[errh_err_ID] IN ({0})
+        GROUP BY h.[errh_err_ID];
+        """;
     private const string SqlUpdateErrorPriority = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Prioridad] = @priority,
@@ -137,6 +149,7 @@ public class ErrorService(
         try
         {
             var errors = await GetRecentErrorsAsync(cancellationToken);
+            await PopulateHeatScoresAsync(errors, cancellationToken);
             var model = BuildListViewModel(errors, query);
             await PopulateAssignedUsersAsync(model.Errors, cancellationToken);
 
@@ -400,6 +413,79 @@ public class ErrorService(
         await PopulateAssignedUsersAsync(connection, errors, cancellationToken);
     }
 
+    private async Task PopulateHeatScoresAsync(
+        List<ErrorItem> errors,
+        CancellationToken cancellationToken)
+    {
+        if (errors.Count == 0)
+        {
+            return;
+        }
+
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        foreach (var chunk in errors.Chunk(500))
+        {
+            await PopulateHeatScoresAsync(connection, chunk, cancellationToken);
+        }
+    }
+
+    private static async Task PopulateHeatScoresAsync(
+        SqlConnection connection,
+        IReadOnlyList<ErrorItem> errors,
+        CancellationToken cancellationToken)
+    {
+        var parameters = errors
+            .Select((error, index) => new
+            {
+                Name = $"@id{index}",
+                error.Id
+            })
+            .ToList();
+        var sql = string.Format(
+            CultureInfo.InvariantCulture,
+            SqlSelectOccurrenceMetricsForErrors,
+            string.Join(", ", parameters.Select(parameter => parameter.Name)));
+        var now = DateTime.Now;
+        var errorsById = errors.ToDictionary(error => error.Id);
+
+        await using var command = new SqlCommand(sql, connection);
+        command.CommandType = CommandType.Text;
+        command.Parameters.Add(new SqlParameter("@oneHourAgo", SqlDbType.DateTime) { Value = now.AddHours(-1) });
+        command.Parameters.Add(new SqlParameter("@twentyFourHoursAgo", SqlDbType.DateTime) { Value = now.AddHours(-24) });
+        command.Parameters.Add(new SqlParameter("@sevenDaysAgo", SqlDbType.DateTime) { Value = now.AddDays(-7) });
+
+        foreach (var parameter in parameters)
+        {
+            command.Parameters.Add(new SqlParameter(parameter.Name, SqlDbType.BigInt) { Value = parameter.Id });
+        }
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var errorId = GetRequiredInt64(reader, "ErrorId");
+
+            if (!errorsById.TryGetValue(errorId, out var error))
+            {
+                continue;
+            }
+
+            error.HeatScore = ErrorHeatClassifier.Classify(
+                new ErrorHeatClassifierInput
+                {
+                    FirstSeenAt = GetRequiredDateTime(reader, "FirstOccurrenceAt"),
+                    LastSeenAt = GetRequiredDateTime(reader, "LastOccurrenceAt"),
+                    TotalOccurrences = GetRequiredInt64(reader, "TotalOccurrences"),
+                    OccurrencesLast1H = GetRequiredInt64(reader, "OccurrencesLast1H"),
+                    OccurrencesLast24H = GetRequiredInt64(reader, "OccurrencesLast24H"),
+                    OccurrencesLast7D = GetRequiredInt64(reader, "OccurrencesLast7D")
+                },
+                now).HeatScore;
+        }
+    }
+
     private static async Task PopulateAssignedUsersAsync(
         SqlConnection connection,
         IReadOnlyList<ErrorItem> errors,
@@ -451,6 +537,11 @@ public class ErrorService(
         ArgumentNullException.ThrowIfNull(errors);
         query.SortBy = NormalizeSortBy(query.SortBy);
         query.SortDirection = query.SafeSortDirection;
+        if (string.Equals(query.SortBy, ErrorListSortFields.Importance, StringComparison.OrdinalIgnoreCase))
+        {
+            query.SortDirection = "desc";
+        }
+
         query.Page = query.SafePage;
         query.PageSize = query.SafePageSize;
 
@@ -578,6 +669,9 @@ public class ErrorService(
             ErrorListSortFields.Occurrences => descending
                 ? errors.OrderByDescending(error => error.Occurrences)
                 : errors.OrderBy(error => error.Occurrences),
+            ErrorListSortFields.Importance => descending
+                ? errors.OrderByDescending(error => error.HeatScore)
+                : errors.OrderBy(error => error.HeatScore),
             ErrorListSortFields.FirstSeen => descending
                 ? errors.OrderByDescending(error => error.FirstSeen)
                 : errors.OrderBy(error => error.FirstSeen),
@@ -814,6 +908,15 @@ public class ErrorService(
         return reader.IsDBNull(ordinal)
             ? throw new DataException($"Required database column {columnName} was null.")
             : reader.GetInt32(ordinal);
+    }
+
+    private static DateTime GetRequiredDateTime(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : reader.GetDateTime(ordinal);
     }
 
     private static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
