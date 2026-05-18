@@ -21,12 +21,14 @@
             summary: null,
             chart: null,
             abortController: null,
-            debounceTimer: 0
+            debounceTimer: 0,
+            touchStartX: 0,
+            touchStartY: 0
         };
 
         bindControls(state);
         setActiveRange(state, state.selectedRange);
-        loadSummary(state);
+        loadSummary(state).then(() => {});
     }
 
     function bindControls(state) {
@@ -51,7 +53,7 @@
         });
 
         state.root.querySelector('[data-bucket-select]')?.addEventListener('change', function () {
-            reloadChart(state);
+            reloadChart(state).then();
         });
 
         state.root.querySelectorAll('[data-custom-from], [data-custom-to]').forEach(function (input) {
@@ -59,6 +61,58 @@
                 scheduleReload(state);
             });
         });
+
+        bindChartTouchGestures(state);
+    }
+
+    function bindChartTouchGestures(state) {
+        const canvas = state.root.querySelector('[data-occurrence-chart]');
+        if (!canvas) {
+            return;
+        }
+
+        canvas.addEventListener('touchstart', function (event) {
+            const touch = event.changedTouches[0];
+            if (!touch) {
+                return;
+            }
+
+            state.touchStartX = touch.clientX;
+            state.touchStartY = touch.clientY;
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', function (event) {
+            const touch = event.changedTouches[0];
+            if (!touch) {
+                return;
+            }
+
+            const deltaX = touch.clientX - state.touchStartX;
+            const deltaY = touch.clientY - state.touchStartY;
+            if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) {
+                return;
+            }
+
+            stepPresetRange(state, deltaX < 0 ? 1 : -1);
+        }, { passive: true });
+    }
+
+    function stepPresetRange(state, direction) {
+        const ranges = ['24h', '7d', '30d', 'historical'];
+        const currentRange = state.selectedRange === 'custom' ? state.lastPresetRange : state.selectedRange;
+        const currentIndex = Math.max(0, ranges.indexOf(currentRange));
+        const nextIndex = Math.min(ranges.length - 1, Math.max(0, currentIndex + direction));
+        const nextRange = ranges[nextIndex];
+
+        if (!nextRange || nextRange === state.selectedRange) {
+            return;
+        }
+
+        state.selectedRange = nextRange;
+        state.lastPresetRange = nextRange;
+        setActiveRange(state, nextRange);
+        toggleCustomRange(state);
+        reloadChart(state).then();
     }
 
     async function loadSummary(state) {
@@ -202,6 +256,7 @@
         const options = {
             responsive: true,
             maintainAspectRatio: false,
+            events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
             interaction: {
                 intersect: false,
                 mode: 'index'

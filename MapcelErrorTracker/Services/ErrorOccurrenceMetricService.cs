@@ -270,7 +270,7 @@ public sealed class ErrorOccurrenceMetricService(
         }
     }
 
-    private ErrorOccurrenceSummaryDto MapSummary(SqlDataReader reader, DateTime now)
+    private static ErrorOccurrenceSummaryDto MapSummary(SqlDataReader reader, DateTime now)
     {
         var firstOccurrenceAt = reader.GetDateTime(reader.GetOrdinal("FirstOccurrenceAt"));
         var lastOccurrenceAt = reader.GetDateTime(reader.GetOrdinal("LastOccurrenceAt"));
