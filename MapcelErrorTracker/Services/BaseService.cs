@@ -2,12 +2,12 @@ namespace MapcelErrorTracker.Services;
 
 public abstract class BaseService
 {
-    private const string DefaultConnectionName = "DevelopmentConnection";
-    private const string ConnectionNameConfigurationKey = "Database:ConnectionName";
+    private const string ProductionConnectionConfigurationKey = "DevelopmentConnection";
+    private const string DevelopmentConnectionConfigurationKey = "DevelopmentConnection";
 
     protected BaseService(IConfiguration configuration, ILogger logger)
     {
-        var connectionName = configuration[ConnectionNameConfigurationKey] ?? DefaultConnectionName;
+        var connectionName = DevelopmentConnectionConfigurationKey;
         ConnectionString = GetRequiredConnectionString(configuration, logger, connectionName);
     }
 
