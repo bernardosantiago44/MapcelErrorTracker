@@ -7,6 +7,7 @@ namespace MapcelErrorTracker.Controllers;
 
 public class ErrorsController(
     IErrorService service,
+    IUsersService usersService,
     ILogger<ErrorsController> logger) : Controller
 {
     public async Task<IActionResult> Index(ErrorListQuery query, CancellationToken cancellationToken)
@@ -23,11 +24,13 @@ public class ErrorsController(
         }
     }
 
+    [HttpGet("Errors/Details/{id:long:min(1)}")]
     public async Task<IActionResult> Details(long id, CancellationToken cancellationToken)
     {
         try
         {
             var error = await service.GetByIdAsync(id, cancellationToken);
+            error.AvailableAssignees = (await usersService.GetAllAsync(cancellationToken)).ToList();
             return View(error);
         }
         catch (NotFoundException)
@@ -48,11 +51,11 @@ public class ErrorsController(
     }
 
     [HttpGet("api/v1/errors/{id:long:min(1)}")]
-    public async Task<ActionResult<Dictionary<string, string>>> FindById(long id, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ErrorItem>> GetById(long id, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await service.FindByIdAsync(id, cancellationToken);
+            var response = await service.GetByIdAsync(id, cancellationToken);
             return Ok(response);
         }
         catch (NotFoundException)
@@ -70,7 +73,7 @@ public class ErrorsController(
     [HttpPost]
     public async Task<IActionResult> UpdateStatus(long id, string status, CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<ErrorStatus>(status, out var parsed))
+        if (!TryParseStatus(status, out var parsed))
         {
             logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
             return RedirectToAction(nameof(Details), new { id });
@@ -106,7 +109,7 @@ public class ErrorsController(
         string? returnUrl,
         CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<ErrorStatus>(status, out var parsed))
+        if (!TryParseStatus(status, out var parsed))
         {
             logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
             return RedirectToIndexOrReturnUrl(returnUrl);
@@ -165,6 +168,44 @@ public class ErrorsController(
         }
 
         return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> AssignUsers(long id, int[]? userIds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await service.AssignUsersAsync(id, userIds ?? [], cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            logger.LogWarning("Assignment update failed because error {ErrorId} does not exist.", id);
+            return NotFound();
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Invalid assignment values received for error {ErrorId}.",
+                id);
+            return BadRequest("Invalid assignment.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to assign programmers to error {ErrorId}.", id);
+            return StatusCode(500, "Internal server error");
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    private static bool TryParseStatus(string? status, out ErrorStatus parsed)
+    {
+        parsed = default;
+
+        return !string.IsNullOrWhiteSpace(status) &&
+               Enum.TryParse(status, ignoreCase: true, out parsed) &&
+               Enum.IsDefined(parsed);
     }
 
     private IActionResult RedirectToIndexOrReturnUrl(string? returnUrl)

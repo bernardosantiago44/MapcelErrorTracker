@@ -3,10 +3,11 @@
 @functions {
     static string StatusLabel(ErrorStatus status) => status switch
     {
-        ErrorStatus.New => "Nuevo",
-        ErrorStatus.Postponed => "Pospuesto",
-        ErrorStatus.InReview => "En revision",
-        ErrorStatus.Resolved => "Resuelto",
+        ErrorStatus.Nuevo => "Nuevo",
+        ErrorStatus.Pospuesto => "Pospuesto",
+        ErrorStatus.EnRevision => "En revisión",
+        ErrorStatus.Resuelto => "Resuelto",
+        ErrorStatus.SinAsignar => "Sin asignar",
         _ => status.ToString()
     };
 }
