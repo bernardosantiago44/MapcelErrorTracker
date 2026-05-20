@@ -37,7 +37,7 @@
         values.Add($"page={(page ?? Model.CurrentPage).ToString(CultureInfo.InvariantCulture)}");
         values.Add($"pageSize={(pageSize ?? Model.PageSize).ToString(CultureInfo.InvariantCulture)}");
 
-        return "/Errors" + (values.Count == 0 ? string.Empty : "?" + string.Join("&", values));
+        return values.Count == 0 ? string.Empty : "?" + string.Join("&", values);
     }
 
     bool IsCurrentSort(string sortBy) =>
@@ -397,7 +397,7 @@
                         <i data-lucide="chevron-down"></i>
                     </button>
                 </div>
-                <form method="get" asp-action="Index" id="errorFilters">
+                <form method="get" id="errorFilters">
                     <input type="hidden" name="sortBy" value="@q.SortBy" />
                     <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
                     <input type="hidden" name="page" value="1" />
