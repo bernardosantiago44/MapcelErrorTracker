@@ -24,9 +24,9 @@ public sealed class ErrorOccurrenceMetricService(
                    MIN(h.[errh_Created]) AS [FirstOccurrenceAt],
                    MAX(h.[errh_Created]) AS [LastOccurrenceAt],
                    COUNT_BIG(*) AS [TotalOccurrences],
-                   SUM(CASE WHEN h.[errh_Created] >= @oneHourAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast1H],
-                   SUM(CASE WHEN h.[errh_Created] >= @twentyFourHoursAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast24H],
-                   SUM(CASE WHEN h.[errh_Created] >= @sevenDaysAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast7D]
+                   SUM(IIF(h.[errh_Created] >= @oneHourAgo, CONVERT(bigint, 1), CONVERT(bigint, 0))) AS [OccurrencesLast1H],
+                   SUM(IIF(h.[errh_Created] >= @twentyFourHoursAgo, CONVERT(bigint, 1), CONVERT(bigint, 0))) AS [OccurrencesLast24H],
+                   SUM(IIF(h.[errh_Created] >= @sevenDaysAgo, CONVERT(bigint, 1), CONVERT(bigint, 0))) AS [OccurrencesLast7D]
             FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
             GROUP BY h.[errh_err_ID]
         )
@@ -40,27 +40,27 @@ public sealed class ErrorOccurrenceMetricService(
         FROM Aggregated
         ORDER BY [LastOccurrenceAt] DESC, [ErrorId]
         OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
-        """;
+    """;
 
     private const string SqlSelectSummaryByErrorId = """
         SELECT h.[errh_err_ID] AS [ErrorId],
                MIN(h.[errh_Created]) AS [FirstOccurrenceAt],
                MAX(h.[errh_Created]) AS [LastOccurrenceAt],
                COUNT_BIG(*) AS [TotalOccurrences],
-               SUM(CASE WHEN h.[errh_Created] >= @oneHourAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast1H],
-               SUM(CASE WHEN h.[errh_Created] >= @twentyFourHoursAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast24H],
-               SUM(CASE WHEN h.[errh_Created] >= @sevenDaysAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast7D]
+               SUM(IIF(h.[errh_Created] >= @oneHourAgo, CONVERT(bigint, 1), CONVERT(bigint, 0))) AS [OccurrencesLast1H],
+               SUM(IIF(h.[errh_Created] >= @twentyFourHoursAgo, CONVERT(bigint, 1), CONVERT(bigint, 0))) AS [OccurrencesLast24H],
+               SUM(IIF(h.[errh_Created] >= @sevenDaysAgo, CONVERT(bigint, 1), CONVERT(bigint, 0))) AS [OccurrencesLast7D]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
         WHERE h.[errh_err_ID] = @errorId
         GROUP BY h.[errh_err_ID];
-        """;
+    """;
 
     private const string SqlSelectMinuteHistogram = """
-        SELECT CAST(CASE WHEN EXISTS (
+        SELECT CAST(IIF(EXISTS (
             SELECT 1
             FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS existing
             WHERE existing.[errh_err_ID] = @errorId
-        ) THEN 1 ELSE 0 END AS bit) AS [HasOccurrences];
+        ), 1, 0) AS bit) AS [HasOccurrences];
 
         SELECT CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 60) AS [BucketIndex],
                COUNT_BIG(*) AS [Occurrences]
@@ -70,14 +70,14 @@ public sealed class ErrorOccurrenceMetricService(
           AND h.[errh_Created] < @to
         GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 60)
         ORDER BY [BucketIndex];
-        """;
+    """;
 
     private const string SqlSelectHourlyHistogram = """
-        SELECT CAST(CASE WHEN EXISTS (
+        SELECT CAST(IIF(EXISTS (
             SELECT 1
             FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS existing
             WHERE existing.[errh_err_ID] = @errorId
-        ) THEN 1 ELSE 0 END AS bit) AS [HasOccurrences];
+        ), 1, 0) AS bit) AS [HasOccurrences];
 
         SELECT CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 3600) AS [BucketIndex],
                COUNT_BIG(*) AS [Occurrences]
@@ -87,14 +87,14 @@ public sealed class ErrorOccurrenceMetricService(
           AND h.[errh_Created] < @to
         GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 3600)
         ORDER BY [BucketIndex];
-        """;
+    """;
 
     private const string SqlSelectDailyHistogram = """
-        SELECT CAST(CASE WHEN EXISTS (
+        SELECT CAST(IIF(EXISTS (
             SELECT 1
             FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS existing
             WHERE existing.[errh_err_ID] = @errorId
-        ) THEN 1 ELSE 0 END AS bit) AS [HasOccurrences];
+        ), 1, 0) AS bit) AS [HasOccurrences];
 
         SELECT CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 86400) AS [BucketIndex],
                COUNT_BIG(*) AS [Occurrences]
@@ -104,14 +104,14 @@ public sealed class ErrorOccurrenceMetricService(
           AND h.[errh_Created] < @to
         GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 86400)
         ORDER BY [BucketIndex];
-        """;
+    """;
 
     private const string SqlSelectWeeklyHistogram = """
-        SELECT CAST(CASE WHEN EXISTS (
+        SELECT CAST(IIF(EXISTS (
             SELECT 1
             FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS existing
             WHERE existing.[errh_err_ID] = @errorId
-        ) THEN 1 ELSE 0 END AS bit) AS [HasOccurrences];
+        ), 1, 0) AS bit) AS [HasOccurrences];
 
         SELECT CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 604800) AS [BucketIndex],
                COUNT_BIG(*) AS [Occurrences]
@@ -121,7 +121,7 @@ public sealed class ErrorOccurrenceMetricService(
           AND h.[errh_Created] < @to
         GROUP BY CONVERT(int, DATEDIFF_BIG(SECOND, @from, h.[errh_Created]) / 604800)
         ORDER BY [BucketIndex];
-        """;
+    """;
 
     public async Task<ErrorOccurrenceSummaryPageDto> GetSummaryPageAsync(
         int page,

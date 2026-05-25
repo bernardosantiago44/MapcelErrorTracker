@@ -667,8 +667,10 @@
                             <select id="pagePicker" name="page" class="pager-page-select" aria-label="Seleccionar pagina">
                                 @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
                                 {
-                                    <option value="@pageNumber" selected="@(pageNumber == Model.CurrentPage ? "selected" : null)">
-                                        @pageNumber
+                                    
+                                    var number = pageNumber;
+                                    <option value="@pageNumber" selected="@(number == Model.CurrentPage ? "selected" : null)">
+                                        @number
                                     </option>
                                 }
                             </select>
