@@ -23,7 +23,7 @@ jobs:
 
     - name: Publish Application
       run: |
-        dotnet publish -c Release -f net10.0 -r win-x64 --self-contained false -o ./publish
+        dotnet publish -c Release -f net10.0 -r win-x64 --self-contained false
         
     - name: Sync Files to FTP Server (with TLS)
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
