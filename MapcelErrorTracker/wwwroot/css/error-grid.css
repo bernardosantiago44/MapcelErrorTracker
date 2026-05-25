@@ -660,6 +660,28 @@
     gap: 8px;
 }
 
+.pager-page-form {
+    margin: 0;
+}
+
+.pager-page-select {
+    height: 34px;
+    min-width: 74px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0 30px 0 10px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.pager-page-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.14);
+    outline: none;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;

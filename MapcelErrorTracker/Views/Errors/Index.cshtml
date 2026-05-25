@@ -655,6 +655,25 @@
                             </span>
                         }
 
+                        <form method="get" class="pager-page-form" aria-label="Ir a pagina">
+                            <input type="hidden" name="search" value="@q.Search" />
+                            <input type="hidden" name="program" value="@q.Program" />
+                            <input type="hidden" name="status" value="@q.Status" />
+                            <input type="hidden" name="priority" value="@q.Priority" />
+                            <input type="hidden" name="sortBy" value="@q.SortBy" />
+                            <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
+                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                            <label for="pagePicker" class="sr-only">Pagina</label>
+                            <select id="pagePicker" name="page" class="pager-page-select" aria-label="Seleccionar pagina">
+                                @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+                                {
+                                    <option value="@pageNumber" selected="@(pageNumber == Model.CurrentPage ? "selected" : null)">
+                                        @pageNumber
+                                    </option>
+                                }
+                            </select>
+                        </form>
+
                         @if (Model.HasNextPage)
                         {
                             <a href="@BuildUrl(page: Model.CurrentPage + 1)" class="btn btn-secondary">
@@ -688,6 +707,10 @@
         }
 
         document.getElementById('errorFilters')?.addEventListener('submit', showLoadingState);
+        document.querySelector('.pager-page-select')?.addEventListener('change', (event) => {
+            showLoadingState();
+            event.target.form?.requestSubmit();
+        });
 
         const filterPanel = document.querySelector('[data-filter-panel]');
         const filterToggle = document.querySelector('[data-filter-toggle]');
