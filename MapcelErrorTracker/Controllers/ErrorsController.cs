@@ -25,12 +25,15 @@ public class ErrorsController(
     }
 
     [HttpGet("Errors/Details/{id:long:min(1)}")]
-    public async Task<IActionResult> Details(long id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Details(long id, string? returnUrl, CancellationToken cancellationToken)
     {
         try
         {
             var error = await service.GetByIdAsync(id, cancellationToken);
             error.AvailableAssignees = (await usersService.GetAllAsync(cancellationToken)).ToList();
+            ViewData["ReturnUrl"] = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+                ? returnUrl
+                : null;
             return View(error);
         }
         catch (NotFoundException)

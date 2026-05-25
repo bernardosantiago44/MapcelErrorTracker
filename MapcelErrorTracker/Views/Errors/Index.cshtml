@@ -572,7 +572,7 @@
                                     </td>
                                     <td data-label="Código" class="path-cell">
                                         <div class="path-value">
-                                            <a asp-action="Details" asp-route-id="@error.Id" class="code-link" data-error-id="@error.Id">@error.Code</a>
+                                            <a asp-action="Details" asp-route-id="@error.Id" asp-route-returnUrl="@returnUrl" class="code-link" data-error-id="@error.Id">@error.Code</a>
                                             <span class="path-program">@error.Program</span>
                                             <span>@error.Module</span>
                                         </div>
@@ -615,7 +615,7 @@
                                     </td>
                                     <td data-label="Acciones rápidas">
                                         <div class="row-actions">
-                                            <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link" data-detail-popup data-error-id="@error.Id">
+                                            <a asp-action="Details" asp-route-id="@error.Id" asp-route-returnUrl="@returnUrl" class="btn btn-link" data-detail-popup data-error-id="@error.Id">
                                                 <i data-lucide="eye"></i>
                                                 Detalles
                                             </a>

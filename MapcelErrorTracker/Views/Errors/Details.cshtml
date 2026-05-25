@@ -6,6 +6,10 @@
         ? $"{errorAge.Days}d {errorAge.Hours}h"
         : $"{errorAge.Hours}h {errorAge.Minutes}m";
     var assignedUserIds = Model.AssignedUsers.Select(user => user.Id).ToHashSet();
+    var returnUrl = ViewData["ReturnUrl"] as string;
+    var backUrl = !string.IsNullOrWhiteSpace(returnUrl)
+        ? returnUrl
+        : Url.Action("Index", "Errors");
 }
 
 @functions {
@@ -155,8 +159,7 @@
 
 <!-- Top navigation bar -->
 <div class="detail-topbar bg-white border-b border-gray-200 px-6 py-3">
-    <a asp-controller="Errors" asp-action="Index"
-       class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+    <a href="@backUrl" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
         <i data-lucide="arrow-left" style="width:16px;height:16px"></i>
         Regresar al dashboard
     </a>
