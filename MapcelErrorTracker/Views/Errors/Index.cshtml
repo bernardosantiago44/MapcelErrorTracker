@@ -5,7 +5,7 @@
     ViewData["Title"] = "Errores";
 
     var q = Model.Query;
-    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString;
+    var returnUrl = Context.Request.PathBase.ToString() + Context.Request.Path + Context.Request.QueryString;
     var currentSort = q.SortBy;
     var currentDirection = q.SafeSortDirection;
 
