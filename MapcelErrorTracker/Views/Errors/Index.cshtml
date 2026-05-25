@@ -5,7 +5,7 @@
     ViewData["Title"] = "Errores";
 
     var q = Model.Query;
-    var returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString;
+    var returnUrl = Context.Request.PathBase.ToString() + Context.Request.Path + Context.Request.QueryString;
     var currentSort = q.SortBy;
     var currentDirection = q.SafeSortDirection;
 
@@ -37,7 +37,7 @@
         values.Add($"page={(page ?? Model.CurrentPage).ToString(CultureInfo.InvariantCulture)}");
         values.Add($"pageSize={(pageSize ?? Model.PageSize).ToString(CultureInfo.InvariantCulture)}");
 
-        return "/Errors" + (values.Count == 0 ? string.Empty : "?" + string.Join("&", values));
+        return values.Count == 0 ? string.Empty : "?" + string.Join("&", values);
     }
 
     bool IsCurrentSort(string sortBy) =>
@@ -46,6 +46,7 @@
     bool DefaultsDescending(string sortBy) =>
         sortBy is ErrorListSortFields.Priority or
             ErrorListSortFields.Occurrences or
+            ErrorListSortFields.Importance or
             ErrorListSortFields.FirstSeen or
             ErrorListSortFields.LastSeen;
 
@@ -200,8 +201,55 @@
             flex-direction: column;
         }
 
+        .filter-panel {
+            padding: 10px;
+        }
+
+        .filter-panel-header {
+            display: flex;
+        }
+
+        .filter-toggle {
+            display: inline-flex;
+        }
+
+        .filter-panel.is-collapsed .filter-panel-body {
+            display: none;
+        }
+
         .filters-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            align-items: end;
+            padding-top: 10px;
+        }
+
+        .filter-field-wide,
+        .actions {
+            grid-column: 1 / -1;
+        }
+
+        .field label {
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        .field input,
+        .field select {
+            height: 34px;
+            padding-inline: 8px;
+            font-size: 13px;
+        }
+
+        .actions {
+            min-width: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        }
+
+        .actions .btn {
+            min-width: 0;
+            padding-inline: 9px;
         }
 
         .table-scroll {
@@ -261,14 +309,32 @@
         .path-cell {
             max-width: none;
             min-width: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .code-link {
+            display: block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.3;
+        }
+
+        .path-cell span {
+            overflow-wrap: anywhere;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .path-value {
+            min-width: 0;
+            max-width: 100%;
         }
 
         .actions {
             min-width: 0;
-        }
-
-        .actions .btn {
-            flex: 1 1 130px;
         }
 
         .row-actions {
@@ -281,6 +347,19 @@
         .status-dropdown-form,
         .status-dropdown-trigger {
             flex: 1 1 0;
+        }
+
+        .status-dropdown,
+        .status-dropdown-form,
+        .status-dropdown-trigger {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .status-dropdown-trigger span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     }
 </style>
@@ -301,19 +380,36 @@
                 </div>
             </header>
 
-            <section class="filter-panel" aria-label="Filtros de errores">
-                <form method="get" asp-action="Index" id="errorFilters">
+            <section class="filter-panel" aria-label="Filtros de errores" data-filter-panel data-has-filters="@Model.HasFilters.ToString().ToLowerInvariant()">
+                <div class="filter-panel-header">
+                    <div>
+                        <h2>Filtros</h2>
+                        <p>
+                            <strong>@Model.FilteredRecords</strong> visibles
+                            @if (Model.HasFilters)
+                            {
+                                <span>con filtros activos</span>
+                            }
+                        </p>
+                    </div>
+                    <button type="button" class="filter-toggle" aria-expanded="true" aria-controls="filterPanelBody" data-filter-toggle>
+                        <span data-filter-toggle-text>Ocultar</span>
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                </div>
+                <form method="get" id="errorFilters">
                     <input type="hidden" name="sortBy" value="@q.SortBy" />
                     <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
                     <input type="hidden" name="page" value="1" />
 
-                    <div class="filters-grid">
-                        <div class="field">
+                    <div class="filter-panel-body" id="filterPanelBody">
+                        <div class="filters-grid">
+                        <div class="field filter-field-wide">
                             <label for="search">Búsqueda</label>
                             <input id="search" name="search" type="search" value="@q.Search" placeholder="Codigo o mensaje" />
                         </div>
 
-                        <div class="field">
+                        <div class="field filter-field-wide">
                             <label for="program">Programa</label>
                             <input id="program" name="program" type="search" value="@q.Program" list="program-options" placeholder="Todos" />
                             <datalist id="program-options">
@@ -365,6 +461,11 @@
                                 <i data-lucide="x"></i>
                                 Limpiar
                             </a>
+                            <a href="@BuildUrl(sortBy: ErrorListSortFields.Importance, sortDirection: "desc", page: 1)" class="btn sort-link">
+                                Importancia
+                                <i data-lucide="@SortIcon(ErrorListSortFields.Importance)"></i>
+                            </a>
+                        </div>
                         </div>
                     </div>
                 </form>
@@ -409,13 +510,15 @@
                         <span aria-hidden="true"> | </span>
                         Tamaño <strong>@Model.PageSize</strong>
                     </p>
-                    <p>
-                        Mostrando <strong>@Model.FirstRecord-@Model.LastRecord</strong> de <strong>@Model.FilteredRecords</strong>
-                        @if (Model.FilteredRecords != Model.TotalRecords)
-                        {
-                            <span>filtrados de <strong>@Model.TotalRecords</strong> totales</span>
-                        }
-                    </p>
+                    <div class="table-toolbar-meta">
+                        <p>
+                            Mostrando <strong>@Model.FirstRecord-@Model.LastRecord</strong> de <strong>@Model.FilteredRecords</strong>
+                            @if (Model.FilteredRecords != Model.TotalRecords)
+                            {
+                                <span>filtrados de <strong>@Model.TotalRecords</strong> totales</span>
+                            }
+                        </p>
+                    </div>
                 </div>
 
                 <div class="table-scroll">
@@ -468,10 +571,11 @@
                                         <span class="badge @PriorityClass(error.Priority)">@PriorityLabel(error.Priority)</span>
                                     </td>
                                     <td data-label="Código" class="path-cell">
-                                        <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
-                                        <br/>
-                                        @error.Program 
-                                        <span>@error.Module</span>
+                                        <div class="path-value">
+                                            <a asp-action="Details" asp-route-id="@error.Id" asp-route-returnUrl="@returnUrl" class="code-link" data-error-id="@error.Id">@error.Code</a>
+                                            <span class="path-program">@error.Program</span>
+                                            <span>@error.Module</span>
+                                        </div>
                                     </td>
                                     <td data-label="Cont">
                                         <span class="badge @OccurrenceClass(error.Occurrences)">@error.Occurrences</span>
@@ -511,7 +615,7 @@
                                     </td>
                                     <td data-label="Acciones rápidas">
                                         <div class="row-actions">
-                                            <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link">
+                                            <a asp-action="Details" asp-route-id="@error.Id" asp-route-returnUrl="@returnUrl" class="btn btn-link" data-detail-popup data-error-id="@error.Id">
                                                 <i data-lucide="eye"></i>
                                                 Detalles
                                             </a>
@@ -551,6 +655,27 @@
                             </span>
                         }
 
+                        <form method="get" class="pager-page-form" aria-label="Ir a pagina">
+                            <input type="hidden" name="search" value="@q.Search" />
+                            <input type="hidden" name="program" value="@q.Program" />
+                            <input type="hidden" name="status" value="@q.Status" />
+                            <input type="hidden" name="priority" value="@q.Priority" />
+                            <input type="hidden" name="sortBy" value="@q.SortBy" />
+                            <input type="hidden" name="sortDirection" value="@q.SafeSortDirection" />
+                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                            <label for="pagePicker" class="sr-only">Pagina</label>
+                            <select id="pagePicker" name="page" class="pager-page-select" aria-label="Seleccionar pagina">
+                                @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+                                {
+                                    
+                                    var number = pageNumber;
+                                    <option value="@pageNumber" selected="@(number == Model.CurrentPage ? "selected" : null)">
+                                        @number
+                                    </option>
+                                }
+                            </select>
+                        </form>
+
                         @if (Model.HasNextPage)
                         {
                             <a href="@BuildUrl(page: Model.CurrentPage + 1)" class="btn btn-secondary">
@@ -584,9 +709,56 @@
         }
 
         document.getElementById('errorFilters')?.addEventListener('submit', showLoadingState);
+        document.querySelector('.pager-page-select')?.addEventListener('change', (event) => {
+            showLoadingState();
+            event.target.form?.requestSubmit();
+        });
+
+        const filterPanel = document.querySelector('[data-filter-panel]');
+        const filterToggle = document.querySelector('[data-filter-toggle]');
+        const filterToggleText = document.querySelector('[data-filter-toggle-text]');
+        const mobileFilters = window.matchMedia('(max-width: 760px)');
+
+        function setFilterCollapsed(collapsed) {
+            if (!filterPanel || !filterToggle) return;
+            filterPanel.classList.toggle('is-collapsed', collapsed);
+            filterToggle.setAttribute('aria-expanded', String(!collapsed));
+            if (filterToggleText) {
+                filterToggleText.textContent = collapsed ? 'Mostrar' : 'Ocultar';
+            }
+        }
+
+        function syncFilterPanelForViewport() {
+            if (!filterPanel) return;
+            const hasFilters = filterPanel.dataset.hasFilters === 'true';
+            setFilterCollapsed(mobileFilters.matches && !hasFilters);
+        }
+
+        filterToggle?.addEventListener('click', () => {
+            setFilterCollapsed(!filterPanel?.classList.contains('is-collapsed'));
+        });
+
+        mobileFilters.addEventListener('change', syncFilterPanelForViewport);
+        syncFilterPanelForViewport();
 
         document.querySelectorAll('.sort-link, .pager a').forEach((link) => {
             link.addEventListener('click', showLoadingState);
+        });
+
+        document.querySelectorAll('[data-detail-popup]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+                const errorId = link.dataset.errorId || 'error';
+                const popup = window.open(
+                    link.href,
+                    `error-details-${errorId}`,
+                    'popup=yes,width=1280,height=900,resizable=yes,scrollbars=yes'
+                );
+
+                if (!popup) return;
+
+                event.preventDefault();
+                popup.focus();
+            });
         });
 
         if (window.renderLucide) {

@@ -71,7 +71,16 @@
         return dropdown.querySelector(`${optionSelector}[aria-selected="true"]`);
     }
 
+    function refreshReturnUrl(form) {
+        const returnUrlInput = form?.querySelector('input[name="returnUrl"]');
+        if (!returnUrlInput) return;
+
+        returnUrlInput.value = `${window.location.pathname}${window.location.search}`;
+    }
+
     function submitForm(form) {
+        refreshReturnUrl(form);
+
         if (form.requestSubmit) {
             form.requestSubmit();
             return;
@@ -197,6 +206,13 @@
             const direction = event.key === 'ArrowDown' ? 1 : -1;
             const nextIndex = (currentIndex + direction + options.length) % options.length;
             setActiveOption(dropdown, options[nextIndex]);
+        }
+    });
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target.closest('[data-status-dropdown-form]');
+        if (form) {
+            refreshReturnUrl(form);
         }
     });
 

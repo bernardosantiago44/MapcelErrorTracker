@@ -6,6 +6,10 @@
         ? $"{errorAge.Days}d {errorAge.Hours}h"
         : $"{errorAge.Hours}h {errorAge.Minutes}m";
     var assignedUserIds = Model.AssignedUsers.Select(user => user.Id).ToHashSet();
+    var returnUrl = ViewData["ReturnUrl"] as string;
+    var backUrl = !string.IsNullOrWhiteSpace(returnUrl)
+        ? returnUrl
+        : Url.Action("Index", "Errors");
 }
 
 @functions {
@@ -73,20 +77,99 @@
     }
 }
 
+<style>
+    .detail-code,
+    .detail-wrap {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .occurrence-chart-shell,
+    .occurrence-chart-canvas {
+        touch-action: pan-y;
+    }
+
+    @@media (max-width: 760px) {
+        .detail-topbar {
+            padding: 10px 14px;
+        }
+
+        .error-detail-layout {
+            gap: 14px;
+            padding: 14px;
+        }
+
+        .error-detail-layout aside .rounded-xl,
+        .error-detail-layout main > section {
+            border-radius: 8px;
+        }
+
+        .error-detail-layout aside .p-5,
+        .error-detail-layout main .p-5,
+        .error-detail-layout main .px-5 {
+            padding-left: 14px;
+            padding-right: 14px;
+        }
+
+        .error-detail-layout main .py-4 {
+            padding-top: 12px;
+            padding-bottom: 12px;
+        }
+
+        .detail-code {
+            font-size: 16px;
+            line-height: 1.35;
+        }
+
+        .detail-mobile-stack {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .detail-mobile-stack time {
+            margin-left: 0;
+        }
+
+        .occurrence-toolbar {
+            align-items: stretch;
+        }
+
+        .occurrence-range-group {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            width: 100%;
+        }
+
+        .occurrence-range {
+            min-height: 36px;
+            padding-inline: 8px;
+            text-align: center;
+        }
+
+        .occurrence-chart-frame {
+            padding: 8px;
+        }
+
+        .occurrence-chart-shell {
+            height: 240px;
+            min-height: 240px;
+        }
+    }
+</style>
+
 <!-- Top navigation bar -->
-<div class="bg-white border-b border-gray-200 px-6 py-3">
-    <a asp-controller="Errors" asp-action="Index"
-       class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+<div class="detail-topbar bg-white border-b border-gray-200 px-6 py-3">
+    <a href="@backUrl" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
         <i data-lucide="arrow-left" style="width:16px;height:16px"></i>
         Regresar al dashboard
     </a>
 </div>
 
 <!-- Two column layout -->
-<div class="flex flex-col lg:flex-row gap-6 px-4 sm:px-6 py-6 max-w-screen-2xl mx-auto">
+<div class="error-detail-layout flex flex-col lg:flex-row gap-6 px-4 sm:px-6 py-6 max-w-screen-2xl mx-auto">
 
     <!-- ==================== LEFT COLUMN: Sticky summary ==================== -->
-    <aside class="w-full lg:w-96 lg:flex-shrink-0">
+    <aside class="w-full lg:w-96 lg:shrink-0">
         <div class="lg:sticky lg:top-4 space-y-4">
 
             <!-- 1. Incident header -->
@@ -99,9 +182,8 @@
                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-600 text-white">Bloquea</span>
                     }
                 </div>
-                <h1 class="text-xl font-bold font-mono text-gray-900 mb-1">@Model.Code</h1>
+                <h1 class="detail-code text-xl font-bold font-mono text-gray-900 mb-1">@Model.Code</h1>
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                    <span class="flex items-center gap-1"><i data-lucide="building-2" style="width:12px;height:12px"></i> @Model.Company</span>
                     <span class="flex items-center gap-1"><i data-lucide="code-2" style="width:12px;height:12px"></i> @Model.Program</span>
                 </div>
             </div>
@@ -169,13 +251,13 @@
                         var isSelected = assignedUserIds.Contains(user.Id);
                         <label class="block cursor-pointer">
                             <div class="flex items-center gap-3 rounded-lg border p-3 transition-colors @AssigneeCardClass(isSelected)">
-                                <input type="checkbox" name="userIds" value="@user.Id" class="h-5 w-5 flex-shrink-0" checked="@(isSelected ? "checked" : null)"/>
+                                <input type="checkbox" name="userIds" value="@user.Id" class="h-5 w-5 shrink-0" checked="@(isSelected ? "checked" : null)"/>
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center justify-between gap-2">
                                         <p class="text-sm font-semibold text-gray-800 truncate">@user.Name</p>
                                         @if (isSelected)
                                         {
-                                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-teal-100 text-teal-700 flex-shrink-0">Asignado</span>
+                                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-teal-100 text-teal-700 shrink-0">Asignado</span>
                                         }
                                     </div>
                                     <p class="text-xs text-gray-500 truncate">@AssignmentContact(user)</p>
@@ -392,8 +474,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
                             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Dónde pasó</p>
-                            <p class="text-sm text-gray-800">@Model.Company · @Model.Program</p>
-                            <p class="text-xs text-gray-500 font-mono mt-0.5">@Model.Module</p>
+                            <p class="detail-wrap text-xs text-gray-500 font-mono mt-0.5">@Model.Module</p>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
                             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Qué tan urgente es</p>
@@ -427,44 +508,12 @@
             </div>
         </section>
 
-        <!-- Section 2: Timeline (expanded by default, collapsible) -->
-        <section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" x-data="{ open: true }">
-            <button @@click="open = !open" class="w-full px-5 py-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors text-left">
-                <h2 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <i data-lucide="clock" style="width:16px;height:16px" class="text-teal-600"></i>
-                    Línea de tiempo
-                    <span class="text-xs font-normal text-gray-400">(@Model.ActivityLog.Count entradas)</span>
-                </h2>
-                <i data-lucide="chevron-down" style="width:16px;height:16px" class="text-gray-400 transition-transform" x-bind:class="open ? 'rotate-180' : ''"></i>
-            </button>
-            <div x-show="open" x-transition class="p-5">
-                @if (Model.ActivityLog.Count == 0)
-                {
-                    <p class="text-sm text-gray-400">Sin actividad registrada.</p>
-                }
-                else
-                {
-                    <div class="relative pl-6">
-                        <div class="absolute left-2 top-2 bottom-2 w-px bg-gray-200"></div>
-                        @foreach (var entry in Model.ActivityLog.OrderByDescending(a => a.Timestamp))
-                        {
-                            <div class="relative mb-4 last:mb-0">
-                                <div class="absolute -left-4 top-1.5 w-2.5 h-2.5 rounded-full bg-teal-500 border-2 border-white"></div>
-                                <div class="flex items-start justify-between gap-2">
-                                    <div>
-                                        <p class="text-sm text-gray-800">
-                                            <span class="font-semibold">@entry.User</span>
-                                            <span class="text-gray-500 ml-1">@entry.Message</span>
-                                        </p>
-                                    </div>
-                                    <time class="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">@FormatDateShort(entry.Timestamp)</time>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-        </section>
+        @await Html.PartialAsync("_OccurrenceTrendChart", new OccurrenceTrendChartViewModel
+        {
+            ErrorId = Model.Id,
+            FirstSeen = Model.FirstSeen,
+            LastSeen = Model.LastSeen
+        })
 
         <!-- Section 3: Technical data (expanded compact, collapsible) -->
         <section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" x-data="{ open: true, stExpanded: false }">
@@ -480,7 +529,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                     <div>
                         <p class="text-xs text-gray-400 mb-0.5">Código error</p>
-                        <p class="text-sm font-mono text-gray-800">@Model.Code</p>
+                        <p class="detail-code text-sm font-mono text-gray-800">@Model.Code</p>
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 mb-0.5">Programa</p>
@@ -488,7 +537,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 mb-0.5">Módulo</p>
-                        <p class="text-sm font-mono text-gray-800">@Model.Module</p>
+                        <p class="detail-wrap text-sm font-mono text-gray-800">@Model.Module</p>
                     </div>
                     @if (HasValue(Model.Process))
                     {
@@ -501,21 +550,21 @@
                     {
                         <div>
                             <p class="text-xs text-gray-400 mb-0.5">ID correlación</p>
-                            <p class="text-sm font-mono text-gray-800">@Model.CorrelationId</p>
+                            <p class="detail-wrap text-sm font-mono text-gray-800">@Model.CorrelationId</p>
                         </div>
                     }
                     @if (HasValue(Model.RequestId))
                     {
                         <div>
                             <p class="text-xs text-gray-400 mb-0.5">Request ID</p>
-                            <p class="text-sm font-mono text-gray-800">@Model.RequestId</p>
+                            <p class="detail-wrap text-sm font-mono text-gray-800">@Model.RequestId</p>
                         </div>
                     }
                     @if (HasValue(Model.FolioNumber))
                     {
                         <div>
                             <p class="text-xs text-gray-400 mb-0.5">Folio</p>
-                            <p class="text-sm font-mono text-gray-800">@Model.FolioNumber</p>
+                            <p class="detail-wrap text-sm font-mono text-gray-800">@Model.FolioNumber</p>
                         </div>
                     }
                 </div>
@@ -545,7 +594,7 @@
                         </div>
                         <pre id="stack-trace-content"
                              class="bg-gray-900 text-gray-300 rounded-lg p-4 text-xs font-mono overflow-auto whitespace-pre-wrap break-all transition-all"
-                             x-bind:class="stExpanded ? 'max-h-[600px]' : 'max-h-28'"
+                             x-bind:class="stExpanded ? 'max-h-150' : 'max-h-28'"
                              style="line-height: 1.6">@Model.StackTrace</pre>
                     </div>
                 }
@@ -671,7 +720,7 @@
                             @foreach (var entry in Model.ActivityLog.OrderByDescending(a => a.Timestamp).Take(3))
                             {
                                 <div class="flex items-center gap-2 text-sm">
-                                    <span class="w-1.5 h-1.5 bg-teal-500 rounded-full flex-shrink-0"></span>
+                                    <span class="w-1.5 h-1.5 bg-teal-500 rounded-full shrink-0"></span>
                                     <span class="text-gray-600">
                                         <span class="font-medium text-gray-800">@entry.User</span> @entry.Message
                                     </span>
@@ -737,7 +786,7 @@
                             @foreach (var contact in Model.NotificationContacts)
                             {
                                 <div class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm">
-                                    <div class="w-7 h-7 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                    <div class="w-7 h-7 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
                                         @contact.Name[0]
                                     </div>
                                     <div>
@@ -836,4 +885,6 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="~/js/occurrence-trend.js" asp-append-version="true"></script>
 }

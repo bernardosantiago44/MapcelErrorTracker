@@ -67,6 +67,51 @@
     padding: 14px;
 }
 
+.filter-panel-header {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.filter-panel-header h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.filter-panel-header p {
+    margin: 2px 0 0;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.filter-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0 10px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.filter-toggle svg {
+    width: 15px;
+    height: 15px;
+    transition: transform 0.16s ease;
+}
+
+.filter-panel.is-collapsed .filter-toggle svg {
+    transform: rotate(-90deg);
+}
+
 .filters-grid {
     display: grid;
     grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(140px, 1fr)) auto auto;
@@ -205,6 +250,14 @@
     font-size: 13px;
 }
 
+.table-toolbar-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
 .table-scroll {
     overflow-x: auto;
 }
@@ -268,10 +321,21 @@
     color: #475569;
 }
 
-.path-cell span {
+.path-value {
+    min-width: 0;
+}
+
+.path-cell span,
+.path-program {
     display: block;
     color: #94a3b8;
     font-size: 11px;
+}
+
+.path-program {
+    margin-top: 3px;
+    color: #475569;
+    font-size: 13px;
 }
 
 .message-cell {
@@ -288,7 +352,6 @@
 .assignees-cell {
     width: 74px;
     min-width: 74px;
-    text-align: center;
 }
 
 .assignee-stack {
@@ -595,6 +658,28 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.pager-page-form {
+    margin: 0;
+}
+
+.pager-page-select {
+    height: 34px;
+    min-width: 74px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0 30px 0 10px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.pager-page-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.14);
+    outline: none;
 }
 
 .sr-only {
