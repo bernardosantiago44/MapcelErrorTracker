@@ -10,29 +10,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Setup .NET 10 SDK
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '10.0.x'
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          
+      - name: Restore Dependencies
+        run: dotnet restore
 
-    - name: Restore Dependencies
-      run: dotnet restore
+      - name: Publish Application
+        run: |
+          dotnet publish -c Release -f net10.0 -r win-x64 --self-contained false -o ./publish
 
-    - name: Publish Application
-      run: |
-        dotnet publish -c Release -f net10.0 -r win-x64 --self-contained false -o ./publish
-        
-    - name: Sync Files to FTP Server (with TLS)
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./publish/
-        server-dir: /Prg6-VisorErrores/Produccion/
-        protocol: ftps              
-        port: 21
-        security: loose
+      - name: Take Application Offline
+        run: |
+          sudo apt-get update && sudo apt-get install -y lftp
+          echo "<h1>Sitio en mantenimiento. Actualizando aplicación...</h1>" > app_offline.htm
+          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ${{ secrets.FTP_SERVER }} -e "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate no;
+            set ftp:passive-mode true;
+            put app_offline.htm -o /Prg6-VisorErrores/Produccion/app_offline.htm;
+            quit"
+
+      - name: Sync Files to FTP Server (with TLS)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./publish/
+          server-dir: /Prg6-VisorErrores/Produccion/
+          protocol: ftps
+          port: 21
+          security: loose
+          exclude: |
+            **/app_offline.htm
+
+      - name: Bring Application Online
+        if: always()
+        run: |
+          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ${{ secrets.FTP_SERVER }} -e "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate no;
+            set ftp:passive-mode true;
+            rm /Prg6-VisorErrores/Produccion/app_offline.htm;
+            quit"
