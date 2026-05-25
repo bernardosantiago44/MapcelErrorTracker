@@ -572,7 +572,7 @@
                                     </td>
                                     <td data-label="Código" class="path-cell">
                                         <div class="path-value">
-                                            <a asp-action="Details" asp-route-id="@error.Id" class="code-link">@error.Code</a>
+                                            <a asp-action="Details" asp-route-id="@error.Id" class="code-link" data-error-id="@error.Id">@error.Code</a>
                                             <span class="path-program">@error.Program</span>
                                             <span>@error.Module</span>
                                         </div>
@@ -615,7 +615,7 @@
                                     </td>
                                     <td data-label="Acciones rápidas">
                                         <div class="row-actions">
-                                            <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link">
+                                            <a asp-action="Details" asp-route-id="@error.Id" class="btn btn-link" data-detail-popup data-error-id="@error.Id">
                                                 <i data-lucide="eye"></i>
                                                 Detalles
                                             </a>
@@ -718,6 +718,22 @@
 
         document.querySelectorAll('.sort-link, .pager a').forEach((link) => {
             link.addEventListener('click', showLoadingState);
+        });
+
+        document.querySelectorAll('[data-detail-popup]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+                const errorId = link.dataset.errorId || 'error';
+                const popup = window.open(
+                    link.href,
+                    `error-details-${errorId}`,
+                    'popup=yes,width=1280,height=900,resizable=yes,scrollbars=yes'
+                );
+
+                if (!popup) return;
+
+                event.preventDefault();
+                popup.focus();
+            });
         });
 
         if (window.renderLucide) {

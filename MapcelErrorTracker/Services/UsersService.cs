@@ -6,8 +6,9 @@ namespace MapcelErrorTracker.Services;
 
 public class UsersService(
     IConfiguration configuration,
+    IWebHostEnvironment env,
     ILogger<UsersService> logger)
-    : BaseService(configuration, logger), IUsersService
+    : BaseService(env, configuration, logger), IUsersService
 {
     private const string SqlSelectUsers = """
         SELECT [prog_ID],

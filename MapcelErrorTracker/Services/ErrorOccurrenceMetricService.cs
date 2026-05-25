@@ -7,8 +7,9 @@ namespace MapcelErrorTracker.Services;
 
 public sealed class ErrorOccurrenceMetricService(
     IConfiguration configuration,
+    IWebHostEnvironment env,
     ILogger<ErrorOccurrenceMetricService> logger)
-    : BaseService(configuration, logger), IErrorOccurrenceMetricService
+    : BaseService(env, configuration, logger), IErrorOccurrenceMetricService
 {
     private const string SqlSelectSummaryPage = """
         SELECT COUNT(*)

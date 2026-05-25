@@ -9,8 +9,9 @@ namespace MapcelErrorTracker.Services;
 
 public class ErrorService(
     IConfiguration configuration,
+    IWebHostEnvironment env,
     ILogger<ErrorService> logger)
-    : BaseService(configuration, logger), IErrorService
+    : BaseService(env, configuration, logger), IErrorService
 {
     private const string SqlSelectRecentErrors = """
         SELECT e.[err_ID],
