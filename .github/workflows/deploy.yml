@@ -35,6 +35,8 @@ jobs:
             set ssl:verify-certificate no;
             set ftp:passive-mode true;
             put app_offline.htm -o /Prg6-VisorErrores/Produccion/app_offline.htm;
+            echo "Waiting ${{ vars.WAIT_SECONDS }} seconds for the server to release file locks..."
+            sleep ${{ vars.WAIT_SECONDS }}
             quit"
 
       - name: Sync Files to FTP Server (with TLS)
