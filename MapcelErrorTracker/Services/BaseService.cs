@@ -1,3 +1,5 @@
+using Microsoft.Data.SqlClient;
+
 namespace MapcelErrorTracker.Services;
 
 public abstract class BaseService
@@ -9,6 +11,7 @@ public abstract class BaseService
     {
         var connectionName = env.IsDevelopment() ? DevelopmentConnectionConfigurationKey : ProductionConnectionConfigurationKey;
         ConnectionString = GetRequiredConnectionString(configuration, logger, connectionName);
+        TestDbConnection(logger);
     }
 
     protected string ConnectionString { get; }
@@ -27,5 +30,22 @@ public abstract class BaseService
         }
 
         return connection;
+    }
+
+    private void TestDbConnection(ILogger logger)
+    {
+        var connection = new SqlConnection(ConnectionString);
+        try
+        {
+            connection.Open();
+        }
+        catch (SqlException e)
+        {
+            logger.LogError(e, "Could not connect to database {Error}", e.Message);
+        }
+        finally
+        {
+            connection.Close();
+        }
     }
 }

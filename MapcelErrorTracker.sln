@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapcelErrorTracker", "MapcelErrorTracker\MapcelErrorTracker.csproj", "{601F0EE4-F9A5-42C9-BF5D-3DE265835871}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapcelErrorTracker.Tests", "MapcelErrorTracker.Tests\MapcelErrorTracker.Tests.csproj", "{BFED6D48-4383-454A-A97F-E30124A5EC91}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{601F0EE4-F9A5-42C9-BF5D-3DE265835871}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{601F0EE4-F9A5-42C9-BF5D-3DE265835871}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{601F0EE4-F9A5-42C9-BF5D-3DE265835871}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BFED6D48-4383-454A-A97F-E30124A5EC91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BFED6D48-4383-454A-A97F-E30124A5EC91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BFED6D48-4383-454A-A97F-E30124A5EC91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BFED6D48-4383-454A-A97F-E30124A5EC91}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

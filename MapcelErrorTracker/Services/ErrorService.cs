@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using MapcelErrorTracker.Exceptions;
 using MapcelErrorTracker.Models;
+using MapcelErrorTracker.Models.ErrorQuery;
 using Microsoft.Data.SqlClient;
 
 namespace MapcelErrorTracker.Services;
@@ -13,37 +14,53 @@ public class ErrorService(
     ILogger<ErrorService> logger)
     : BaseService(env, configuration, logger), IErrorService
 {
-    private const string SqlSelectRecentErrors = """
-        SELECT e.[err_ID],
-               e.[err_CodigoError],
-               e.[err_DescripcioError],
-               e.[err_Programa_Nombre],
-               e.[err_Programa_Modulo],
-               e.[err_Programa_Proceso],
-               e.[err_Prioridad],
-               e.[err_FechaGen],
-               e.[err_FechaUlt],
-               e.[err_Contador],
-               e.[err_IdEnterprise],
-               e.[err_Exception_MstLast],
-               e.[err_Exception_StackTrace],
-               e.[err_ErrorAlEnviar],
-               e.[err_MsgBody],
-               e.[err_MsgSubject],
-               e.[err_Procesado],
-               e.[err_UbicacionProgrm],
-               e.[err_ComentariosAdic],
-               e.[err_NombreModifico],
-               e.[err_NumeroFolio],
-               e.[err_FirstNotif],
-               e.[err_LastNotif],
-               e.[err_NumAviso],
-               e.[err_MailSended],
-               e.[err_Status]
-        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
-        WHERE e.[err_Procesado] IS NULL
-           OR (e.[err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE(e.[err_FechaUlt], e.[err_FechaGen]), GETDATE()) <= 1);
-        """;
+    private const string SqlRecentErrorPredicate = """
+        (e.[err_Procesado] IS NULL
+            OR e.[err_FechaUlt] >= @recentCutoff
+            OR (e.[err_FechaUlt] IS NULL AND e.[err_FechaGen] >= @recentCutoff))
+    """;
+    private const string SqlStatusRankExpression = """
+        CASE
+            WHEN e.[err_Status] IS NULL OR LTRIM(RTRIM(e.[err_Status])) = '' THEN 0
+            WHEN LOWER(LTRIM(RTRIM(e.[err_Status]))) = N'sin asignar' THEN 0
+            WHEN LOWER(LTRIM(RTRIM(e.[err_Status]))) = N'nuevo' THEN 1
+            WHEN LOWER(LTRIM(RTRIM(e.[err_Status]))) IN (N'en revisión', N'en revision') THEN 2
+            WHEN LOWER(LTRIM(RTRIM(e.[err_Status]))) = N'pospuesto' THEN 3
+            WHEN LOWER(LTRIM(RTRIM(e.[err_Status]))) = N'resuelto' THEN 4
+            ELSE 0
+        END
+    """;
+    private const string SqlPriorityRankExpression = """
+        CASE LOWER(LTRIM(RTRIM(e.[err_Prioridad])))
+            WHEN N'alta' THEN 3
+            WHEN N'media' THEN 2
+            WHEN N'baja' THEN 1
+            ELSE 2
+        END
+    """;
+    private const string SqlHeatScoreExpression = """
+        CASE
+            WHEN occurrenceMetrics.[TotalOccurrences] IS NULL OR occurrenceMetrics.[TotalOccurrences] = 0 THEN CONVERT(float, 0)
+            ELSE ROUND(
+                occurrenceMetrics.[OccurrencesLast1H] * 3.0 +
+                occurrenceMetrics.[OccurrencesLast24H] +
+                occurrenceMetrics.[OccurrencesLast7D] * 0.25 +
+                CASE
+                    WHEN DATEDIFF(MINUTE, occurrenceMetrics.[LastOccurrenceAt], @now) <= 15 THEN 30
+                    WHEN DATEDIFF(MINUTE, occurrenceMetrics.[LastOccurrenceAt], @now) <= 60 THEN 20
+                    WHEN DATEDIFF(MINUTE, occurrenceMetrics.[LastOccurrenceAt], @now) <= 360 THEN 10
+                    ELSE 0
+                END +
+                CASE
+                    WHEN DATEDIFF(HOUR, occurrenceMetrics.[FirstOccurrenceAt], @now) > 720
+                         AND occurrenceMetrics.[TotalOccurrences] < 20 THEN -35
+                    WHEN DATEDIFF(HOUR, occurrenceMetrics.[FirstOccurrenceAt], @now) > 168
+                         AND occurrenceMetrics.[TotalOccurrences] < 10 THEN -20
+                    ELSE 0
+                END,
+                2)
+        END
+    """;
     private const string SqlSelectErrorById = """
         SELECT e.[err_ID],
                e.[err_CodigoError],
@@ -73,7 +90,7 @@ public class ErrorService(
                e.[err_Status]
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
         WHERE e.[err_ID] = @id;
-        """;
+    """;
     private const string SqlSelectAssignedUsersByErrorId = """
         SELECT p.[prog_ID],
                p.[prog_nombre],
@@ -84,7 +101,7 @@ public class ErrorService(
             ON p.[prog_ID] = a.[programadorId]
         WHERE a.[errorId] = @id
         ORDER BY p.[prog_nombre];
-        """;
+    """;
     private const string SqlSelectAssignedUsersForErrors = """
         SELECT a.[errorId],
                p.[prog_ID],
@@ -96,7 +113,7 @@ public class ErrorService(
             ON p.[prog_ID] = a.[programadorId]
         WHERE a.[errorId] IN ({0})
         ORDER BY a.[errorId], p.[prog_nombre];
-        """;
+    """;
     private const string SqlSelectOccurrenceMetricsForErrors = """
         SELECT h.[errh_err_ID] AS [ErrorId],
                MIN(h.[errh_Created]) AS [FirstOccurrenceAt],
@@ -108,29 +125,29 @@ public class ErrorService(
         FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
         WHERE h.[errh_err_ID] IN ({0})
         GROUP BY h.[errh_err_ID];
-        """;
+    """;
     private const string SqlUpdateErrorPriority = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Prioridad] = @priority,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
-        """;
+    """;
     private const string SqlUpdateErrorStatus = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Status] = @status,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
-        """;
+    """;
     private const string SqlDeleteAssignedUsers = """
         DELETE FROM [MapaLocalizadorVisor].[dbo].[ErroresAsignaturas]
         WHERE [errorId] = @id;
-        """;
+    """;
     private const string SqlInsertAssignedUser = """
         INSERT INTO [MapaLocalizadorVisor].[dbo].[ErroresAsignaturas]
             ([errorId], [programadorId])
         VALUES
             (@id, @userId);
-        """;
+    """;
     private const string SqlUpdateErrorAssignmentState = """
         UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
         SET [err_Status] = CASE
@@ -139,7 +156,7 @@ public class ErrorService(
             END,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
-        """;
+    """;
 
     public async Task<ErrorListViewModel> GetListAsync(
         ErrorListQuery query,
@@ -149,10 +166,27 @@ public class ErrorService(
 
         try
         {
-            var errors = await GetRecentErrorsAsync(cancellationToken);
-            await PopulateHeatScoresAsync(errors, cancellationToken);
-            var model = BuildListViewModel(errors, query);
-            await PopulateAssignedUsersAsync(model.Errors, cancellationToken);
+            var normalizedQuery = NormalizeListQuery(query);
+            var page = await GetErrorListPageAsync(normalizedQuery, cancellationToken);
+
+            if (!string.Equals(normalizedQuery.SortBy, ErrorListSortFields.Importance, StringComparison.Ordinal))
+            {
+                await PopulateHeatScoresAsync(page.Errors, cancellationToken);
+            }
+
+            await PopulateAssignedUsersAsync(page.Errors, cancellationToken);
+
+            query.Page = page.CurrentPage;
+            var model = new ErrorListViewModel
+            {
+                Query = query,
+                Errors = page.Errors,
+                Programs = page.Programs,
+                TotalRecords = page.TotalRecords,
+                FilteredRecords = page.FilteredRecords,
+                CurrentPage = page.CurrentPage,
+                PageSize = normalizedQuery.PageSize
+            };
 
             return model;
         }
@@ -162,6 +196,13 @@ public class ErrorService(
             throw;
         }
     }
+
+    private sealed record ErrorListPage(
+        List<ErrorItem> Errors,
+        IReadOnlyList<string> Programs,
+        int TotalRecords,
+        int FilteredRecords,
+        int CurrentPage);
 
     public async Task<ErrorItem> GetByIdAsync(long id, CancellationToken cancellationToken)
     {
@@ -379,24 +420,315 @@ public class ErrorService(
         return users;
     }
 
-    private async Task<List<ErrorItem>> GetRecentErrorsAsync(CancellationToken cancellationToken)
+    private async Task<ErrorListPage> GetErrorListPageAsync(
+        NormalizedErrorListQuery query,
+        CancellationToken cancellationToken)
     {
         var errors = new List<ErrorItem>();
+        var programs = new List<string>();
+        var now = DateTime.Now;
 
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
-        await using var command = new SqlCommand(SqlSelectRecentErrors, connection);
+        await using var command = new SqlCommand(BuildListPageSql(query), connection);
         command.CommandType = CommandType.Text;
+        AddListPageParameters(command, query, now);
+
+        var totalRecords = 0;
+        var filteredRecords = 0;
+        var currentPage = 1;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        while (await reader.ReadAsync(cancellationToken))
+        if (await reader.ReadAsync(cancellationToken))
         {
-            errors.Add(MapErrorItem(reader));
+            totalRecords = ToNonNegativeInt(GetRequiredInt64(reader, "TotalRecords"));
+            filteredRecords = ToNonNegativeInt(GetRequiredInt64(reader, "FilteredRecords"));
+            currentPage = GetRequiredInt32(reader, "CurrentPage");
         }
 
-        return errors;
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            errors.Add(MapErrorListItem(reader));
+        }
+
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            programs.Add(GetRequiredString(reader, "Program"));
+        }
+
+        return new ErrorListPage(
+            errors,
+            programs,
+            totalRecords,
+            filteredRecords,
+            currentPage);
+    }
+
+    private static NormalizedErrorListQuery NormalizeListQuery(ErrorListQuery query)
+    {
+        query.SortBy = NormalizeSortBy(query.SortBy);
+        query.SortDirection = query.SafeSortDirection;
+        if (string.Equals(query.SortBy, ErrorListSortFields.Importance, StringComparison.Ordinal))
+        {
+            query.SortDirection = "desc";
+        }
+
+        query.Page = query.SafePage;
+        query.PageSize = query.SafePageSize;
+
+        var includeAllStatuses = string.Equals(
+            query.Status,
+            ErrorListQuery.AllStatusesValue,
+            StringComparison.OrdinalIgnoreCase);
+        ErrorStatus? status = null;
+
+        if (includeAllStatuses)
+        {
+            query.Status = ErrorListQuery.AllStatusesValue;
+        }
+        else if (TryParseStatusName(query.Status, out var parsedStatus))
+        {
+            status = parsedStatus;
+            query.Status = parsedStatus.ToString();
+        }
+        else
+        {
+            query.Status = null;
+        }
+
+        ErrorPriority? priority = null;
+        if (!string.IsNullOrWhiteSpace(query.Priority) &&
+            Enum.TryParse<ErrorPriority>(query.Priority, ignoreCase: true, out var parsedPriority) &&
+            Enum.IsDefined(parsedPriority))
+        {
+            priority = parsedPriority;
+            query.Priority = parsedPriority.ToString();
+        }
+        else
+        {
+            query.Priority = null;
+        }
+
+        return new NormalizedErrorListQuery(
+            NullIfWhiteSpace(query.Search),
+            NullIfWhiteSpace(query.Program),
+            status,
+            includeAllStatuses,
+            priority,
+            query.SortBy,
+            query.SortDirection,
+            query.Page,
+            query.PageSize);
+    }
+
+    private static string BuildListPageSql(NormalizedErrorListQuery query)
+    {
+        var filteredPredicate = BuildFilteredPredicate(query);
+        var heatScoreExpression = string.Equals(query.SortBy, ErrorListSortFields.Importance, StringComparison.Ordinal)
+            ? SqlHeatScoreExpression
+            : "CONVERT(float, 0)";
+
+        return $$"""
+            DECLARE @totalRecords bigint;
+            DECLARE @filteredRecords bigint;
+
+            SELECT @totalRecords = COUNT_BIG(*)
+            FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
+            WHERE {{SqlRecentErrorPredicate}};
+
+            SELECT @filteredRecords = COUNT_BIG(*)
+            FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
+            WHERE {{filteredPredicate}};
+
+            DECLARE @totalPages int = CASE
+                WHEN @filteredRecords = 0 THEN 1
+                ELSE CONVERT(int, CEILING(CONVERT(float, @filteredRecords) / @pageSize))
+            END;
+            DECLARE @currentPage int = CASE
+                WHEN @page > @totalPages THEN @totalPages
+                ELSE @page
+            END;
+            DECLARE @offset int = (@currentPage - 1) * @pageSize;
+
+            SELECT @totalRecords AS [TotalRecords],
+                   @filteredRecords AS [FilteredRecords],
+                   @currentPage AS [CurrentPage];
+
+            WITH FilteredErrors AS (
+                SELECT e.[err_ID],
+                       e.[err_CodigoError],
+                       e.[err_DescripcioError],
+                       e.[err_Programa_Nombre],
+                       e.[err_Programa_Modulo],
+                       e.[err_Prioridad],
+                       e.[err_FechaGen],
+                       e.[err_FechaUlt],
+                       e.[err_Contador],
+                       e.[err_IdEnterprise],
+                       e.[err_Status],
+                       e.[err_FechaGen] AS [FirstSeen],
+                       COALESCE(e.[err_FechaUlt], e.[err_FechaGen]) AS [LastSeen],
+                       COALESCE(e.[err_Contador], 0) AS [Occurrences],
+                       {{SqlStatusRankExpression}} AS [StatusRank],
+                       {{SqlPriorityRankExpression}} AS [PriorityRank],
+                       {{heatScoreExpression}} AS [HeatScore]
+                FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
+                {{BuildHeatMetricsApply(query)}}
+                WHERE {{filteredPredicate}}
+            )
+            SELECT [err_ID],
+                   [err_CodigoError],
+                   [err_DescripcioError],
+                   [err_Programa_Nombre],
+                   [err_Programa_Modulo],
+                   [err_Prioridad],
+                   [err_FechaGen],
+                   [err_FechaUlt],
+                   [err_Contador],
+                   [err_IdEnterprise],
+                   [err_Status],
+                   [HeatScore]
+            FROM FilteredErrors
+            {{BuildOrderByClause(query)}}
+            OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
+
+            SELECT [Program]
+            FROM (
+                SELECT DISTINCT e.[err_Programa_Nombre] AS [Program]
+                FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
+                WHERE {{SqlRecentErrorPredicate}}
+                  AND e.[err_Programa_Nombre] IS NOT NULL
+                  AND LTRIM(RTRIM(e.[err_Programa_Nombre])) <> ''
+            ) AS Programs
+            ORDER BY [Program];
+            """;
+    }
+
+    private static string BuildFilteredPredicate(NormalizedErrorListQuery query)
+    {
+        var predicates = new List<string> { SqlRecentErrorPredicate };
+
+        if (!query.IncludeAllStatuses)
+        {
+            predicates.Add(query.Status.HasValue
+                ? $"({SqlStatusRankExpression}) = @statusRank"
+                : $"({SqlStatusRankExpression}) <> @resolvedStatusRank");
+        }
+
+        if (query.Priority.HasValue)
+        {
+            predicates.Add($"({SqlPriorityRankExpression}) = @priorityRank");
+        }
+
+        if (query.Search is not null)
+        {
+            predicates.Add("""
+                (e.[err_CodigoError] LIKE @search ESCAPE '\'
+                    OR CONVERT(varchar(20), e.[err_IdEnterprise]) LIKE @search ESCAPE '\'
+                    OR e.[err_Programa_Nombre] LIKE @search ESCAPE '\'
+                    OR e.[err_Programa_Modulo] LIKE @search ESCAPE '\'
+                    OR e.[err_DescripcioError] LIKE @search ESCAPE '\')
+                """);
+        }
+
+        if (query.Program is not null)
+        {
+            predicates.Add("e.[err_Programa_Nombre] LIKE @program ESCAPE '\\'");
+        }
+
+        return string.Join($"{Environment.NewLine}              AND ", predicates);
+    }
+
+    private static string BuildHeatMetricsApply(NormalizedErrorListQuery query)
+    {
+        return 
+            !string.Equals(query.SortBy, ErrorListSortFields.Importance, StringComparison.Ordinal) 
+                ? string.Empty 
+                : """
+                    OUTER APPLY (
+                        SELECT MIN(h.[errh_Created]) AS [FirstOccurrenceAt],
+                               MAX(h.[errh_Created]) AS [LastOccurrenceAt],
+                               COUNT_BIG(*) AS [TotalOccurrences],
+                               SUM(CASE WHEN h.[errh_Created] >= @oneHourAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast1H],
+                               SUM(CASE WHEN h.[errh_Created] >= @twentyFourHoursAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast24H],
+                               SUM(CASE WHEN h.[errh_Created] >= @sevenDaysAgo THEN CONVERT(bigint, 1) ELSE CONVERT(bigint, 0) END) AS [OccurrencesLast7D]
+                        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory] AS h
+                        WHERE h.[errh_err_ID] = e.[err_ID]
+                    ) AS occurrenceMetrics
+                """;
+    }
+
+    private static string BuildOrderByClause(NormalizedErrorListQuery query)
+    {
+        var direction = string.Equals(query.SortDirection, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "ASC"
+            : "DESC";
+        var orderByColumns = query.SortBy switch
+        {
+            ErrorListSortFields.Status => new[] { $"[StatusRank] {direction}", "[LastSeen] DESC", "[err_CodigoError] ASC" },
+            ErrorListSortFields.Priority => new[] { $"[PriorityRank] {direction}", "[LastSeen] DESC", "[err_CodigoError] ASC" },
+            ErrorListSortFields.Company => new[] { $"[err_IdEnterprise] {direction}", "[LastSeen] DESC", "[err_CodigoError] ASC" },
+            ErrorListSortFields.ErrorCode => new[] { $"[err_CodigoError] {direction}", "[LastSeen] DESC" },
+            ErrorListSortFields.Occurrences => new[] { $"[Occurrences] {direction}", "[LastSeen] DESC", "[err_CodigoError] ASC" },
+            ErrorListSortFields.Importance => new[] { "[HeatScore] DESC", "[LastSeen] DESC", "[err_CodigoError] ASC" },
+            ErrorListSortFields.FirstSeen => new[] { $"[FirstSeen] {direction}", "[LastSeen] DESC", "[err_CodigoError] ASC" },
+            _ => new[] { $"[LastSeen] {direction}", "[err_CodigoError] ASC" }
+        };
+
+        return $"ORDER BY {string.Join(", ", orderByColumns)}";
+    }
+
+    private static void AddListPageParameters(
+        SqlCommand command,
+        NormalizedErrorListQuery query,
+        DateTime now)
+    {
+        command.Parameters.Add(new SqlParameter("@recentCutoff", SqlDbType.DateTime) { Value = now.AddDays(-1) });
+        command.Parameters.Add(new SqlParameter("@page", SqlDbType.Int) { Value = query.Page });
+        command.Parameters.Add(new SqlParameter("@pageSize", SqlDbType.Int) { Value = query.PageSize });
+        command.Parameters.Add(new SqlParameter("@resolvedStatusRank", SqlDbType.Int)
+        {
+            Value = StatusRank(ErrorStatus.Resuelto)
+        });
+        command.Parameters.Add(new SqlParameter("@now", SqlDbType.DateTime) { Value = now });
+        command.Parameters.Add(new SqlParameter("@oneHourAgo", SqlDbType.DateTime) { Value = now.AddHours(-1) });
+        command.Parameters.Add(new SqlParameter("@twentyFourHoursAgo", SqlDbType.DateTime) { Value = now.AddHours(-24) });
+        command.Parameters.Add(new SqlParameter("@sevenDaysAgo", SqlDbType.DateTime) { Value = now.AddDays(-7) });
+
+        if (query.Status.HasValue)
+        {
+            command.Parameters.Add(new SqlParameter("@statusRank", SqlDbType.Int)
+            {
+                Value = StatusRank(query.Status.Value)
+            });
+        }
+
+        if (query.Priority.HasValue)
+        {
+            command.Parameters.Add(new SqlParameter("@priorityRank", SqlDbType.Int)
+            {
+                Value = PriorityRank(query.Priority.Value)
+            });
+        }
+
+        if (query.Search is not null)
+        {
+            command.Parameters.Add(new SqlParameter("@search", SqlDbType.NVarChar, 4000)
+            {
+                Value = ToLikePattern(query.Search)
+            });
+        }
+
+        if (query.Program is not null)
+        {
+            command.Parameters.Add(new SqlParameter("@program", SqlDbType.NVarChar, 4000)
+            {
+                Value = ToLikePattern(query.Program)
+            });
+        }
     }
 
     private async Task PopulateAssignedUsersAsync(
@@ -531,157 +863,37 @@ public class ErrorService(
         }
     }
 
-    private static ErrorListViewModel BuildListViewModel(
-        List<ErrorItem> errors,
-        ErrorListQuery query)
+    private static string? NullIfWhiteSpace(string? value)
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        query.SortBy = NormalizeSortBy(query.SortBy);
-        query.SortDirection = query.SafeSortDirection;
-        if (string.Equals(query.SortBy, ErrorListSortFields.Importance, StringComparison.OrdinalIgnoreCase))
-        {
-            query.SortDirection = "desc";
-        }
-
-        query.Page = query.SafePage;
-        query.PageSize = query.SafePageSize;
-
-        var filtered = ApplyFilters(errors, query);
-        var sorted = ApplySort(filtered, query.SortBy, query.SortDirection);
-        var filteredErrors = sorted.ToList();
-        var filteredRecords = filteredErrors.Count;
-        var totalPages = filteredRecords == 0
-            ? 1
-            : (int)Math.Ceiling(filteredRecords / (double)query.PageSize);
-        var currentPage = Math.Min(query.Page, totalPages);
-
-        query.Page = currentPage;
-
-        return new ErrorListViewModel
-        {
-            Query = query,
-            Errors = filteredErrors
-                .Skip((currentPage - 1) * query.PageSize)
-                .Take(query.PageSize)
-                .ToList(),
-            Companies = errors
-                .Select(error => error.Company)
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(value => value)
-                .ToList(),
-            Programs = errors
-                .Select(error => error.Program)
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(value => value)
-                .ToList(),
-            TotalRecords = errors.Count,
-            FilteredRecords = filteredRecords,
-            CurrentPage = currentPage,
-            PageSize = query.PageSize
-        };
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    private static IEnumerable<ErrorItem> ApplyFilters(
-        IEnumerable<ErrorItem> errors,
-        ErrorListQuery query)
+    private static string ToLikePattern(string value)
     {
-        var filtered = errors;
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var search = query.Search.Trim();
-            filtered = filtered.Where(error =>
-                Contains(error.Code, search) ||
-                Contains(error.Company, search) ||
-                Contains(error.Program, search) ||
-                Contains(error.Module, search) ||
-                Contains(error.Description, search));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Program))
-        {
-            var program = query.Program.Trim();
-            filtered = filtered.Where(error => Contains(error.Program, program));
-        }
-
-        if (TryParseStatusName(query.Status, out var status))
-        {
-            filtered = filtered.Where(error => error.Status == status);
-        }
-        else
-        {
-            filtered = filtered.Where(error => error.Status != ErrorStatus.Resuelto);
-            query.Status = null;
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Priority) &&
-            Enum.TryParse<ErrorPriority>(query.Priority, ignoreCase: true, out var priority))
-        {
-            filtered = filtered.Where(error => error.Priority == priority);
-        }
-        else
-        {
-            query.Priority = null;
-        }
-
-        return filtered;
+        return $"%{EscapeLikeValue(value)}%";
     }
 
-    private static bool Contains(string source, string value)
+    private static string EscapeLikeValue(string value)
     {
-        return !string.IsNullOrWhiteSpace(source) &&
-               source.Contains(value, StringComparison.OrdinalIgnoreCase);
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            if (character is '\\' or '%' or '_' or '[' or ']')
+            {
+                builder.Append('\\');
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
     }
 
     private static string NormalizeSortBy(string? sortBy)
     {
-        if (!string.IsNullOrWhiteSpace(sortBy) &&
-            ErrorListSortFields.Allowed.Contains(sortBy))
-        {
-            return sortBy;
-        }
-
-        return ErrorListSortFields.LastSeen;
-    }
-
-    private static IEnumerable<ErrorItem> ApplySort(
-        IEnumerable<ErrorItem> errors,
-        string sortBy,
-        string sortDirection)
-    {
-        var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
-
-        var sorted = sortBy switch
-        {
-            ErrorListSortFields.Status => descending
-                ? errors.OrderByDescending(error => StatusRank(error.Status))
-                : errors.OrderBy(error => StatusRank(error.Status)),
-            ErrorListSortFields.Priority => descending
-                ? errors.OrderByDescending(error => PriorityRank(error.Priority))
-                : errors.OrderBy(error => PriorityRank(error.Priority)),
-            ErrorListSortFields.Company => descending
-                ? errors.OrderByDescending(error => error.Company)
-                : errors.OrderBy(error => error.Company),
-            ErrorListSortFields.ErrorCode => descending
-                ? errors.OrderByDescending(error => error.Code)
-                : errors.OrderBy(error => error.Code),
-            ErrorListSortFields.Occurrences => descending
-                ? errors.OrderByDescending(error => error.Occurrences)
-                : errors.OrderBy(error => error.Occurrences),
-            ErrorListSortFields.Importance => descending
-                ? errors.OrderByDescending(error => error.HeatScore)
-                : errors.OrderBy(error => error.HeatScore),
-            ErrorListSortFields.FirstSeen => descending
-                ? errors.OrderByDescending(error => error.FirstSeen)
-                : errors.OrderBy(error => error.FirstSeen),
-            _ => descending
-                ? errors.OrderByDescending(error => error.LastSeen)
-                : errors.OrderBy(error => error.LastSeen)
-        };
-
-        return sorted.ThenByDescending(error => error.LastSeen).ThenBy(error => error.Code);
+        return ErrorListSortFields.Allowed.FirstOrDefault(
+            field => string.Equals(field, sortBy, StringComparison.OrdinalIgnoreCase)) ?? ErrorListSortFields.LastSeen;
     }
 
     private static int PriorityRank(ErrorPriority priority)
@@ -714,6 +926,30 @@ public class ErrorService(
         return !string.IsNullOrWhiteSpace(value) &&
                Enum.TryParse(value, ignoreCase: true, out status) &&
                Enum.IsDefined(status);
+    }
+
+    private ErrorItem MapErrorListItem(SqlDataReader reader)
+    {
+        var firstSeen = GetNullableDateTime(reader, "err_FechaGen") ?? DateTime.UtcNow;
+        var lastSeen = GetNullableDateTime(reader, "err_FechaUlt") ?? firstSeen;
+        var enterpriseId = GetNullableInt32(reader, "err_IdEnterprise");
+
+        return new ErrorItem
+        {
+            Id = GetRequiredInt64(reader, "err_ID"),
+            Code = GetRequiredString(reader, "err_CodigoError"),
+            Description = GetRequiredString(reader, "err_DescripcioError"),
+            Program = GetRequiredString(reader, "err_Programa_Nombre"),
+            Module = GetRequiredString(reader, "err_Programa_Modulo"),
+            Priority = ParsePriority(GetRequiredString(reader, "err_Prioridad")),
+            Status = ParseStatus(GetNullableString(reader, "err_Status")),
+            Occurrences = GetNullableInt16(reader, "err_Contador") ?? 0,
+            HeatScore = GetRequiredDouble(reader, "HeatScore"),
+            FirstSeen = firstSeen,
+            LastSeen = lastSeen,
+            Company = enterpriseId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            ActivityLog = BuildActivityLog(firstSeen, lastSeen, null)
+        };
     }
 
     private ErrorItem MapErrorItem(SqlDataReader reader)
@@ -765,7 +1001,8 @@ public class ErrorService(
 
     private ErrorPriority ParsePriority(string value)
     {
-        if (Enum.TryParse<ErrorPriority>(value, ignoreCase: true, out var priority))
+        if (Enum.TryParse<ErrorPriority>(value, ignoreCase: true, out var priority) &&
+            Enum.IsDefined(priority))
         {
             return priority;
         }
@@ -788,12 +1025,19 @@ public class ErrorService(
             "pospuesto" => ErrorStatus.Pospuesto,
             "resuelto" => ErrorStatus.Resuelto,
             "sin asignar" => ErrorStatus.SinAsignar,
-            _ => throw new DataException($"Unknown err_Status value '{dbStatus}'.")
+            _ => ErrorStatus.SinAsignar
         };
 
         if (string.IsNullOrWhiteSpace(dbStatus))
         {
             logger.LogWarning("Empty err_Status value found. Defaulting to {Status}.", status);
+        }
+        else if (status == ErrorStatus.SinAsignar && normalizedStatus != "sin asignar")
+        {
+            logger.LogWarning(
+                "Unknown err_Status value {StatusValue} found. Defaulting to {Status}.",
+                dbStatus,
+                status);
         }
 
         return status;
@@ -920,6 +1164,15 @@ public class ErrorService(
             : reader.GetDateTime(ordinal);
     }
 
+    private static double GetRequiredDouble(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+    }
+
     private static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
     {
         var ordinal = reader.GetOrdinal(columnName);
@@ -936,5 +1189,15 @@ public class ErrorService(
     {
         var ordinal = reader.GetOrdinal(columnName);
         return reader.IsDBNull(ordinal) ? null : reader.GetInt16(ordinal);
+    }
+
+    private static int ToNonNegativeInt(long value)
+    {
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        return value > int.MaxValue ? int.MaxValue : (int)value;
     }
 }

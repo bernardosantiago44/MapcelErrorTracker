@@ -3,6 +3,7 @@ namespace MapcelErrorTracker.Models;
 public class ErrorListQuery
 {
     public const int DefaultPageSize = 10;
+    public const string AllStatusesValue = "all";
     private const int MaxPageSize = 50;
 
     public string? Search { get; init; }

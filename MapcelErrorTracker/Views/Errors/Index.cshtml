@@ -423,7 +423,8 @@
                         <div class="field">
                             <label for="status">Estado</label>
                             <select id="status" name="status">
-                                <option value="">Todos</option>
+                                <option value="">Abiertos</option>
+                                <option value="@ErrorListQuery.AllStatusesValue" selected="@(Selected(q.Status, ErrorListQuery.AllStatusesValue) ? "selected" : null)">Todos</option>
                                 @foreach (var status in Enum.GetValues<ErrorStatus>())
                                 {
                                     <option value="@status" selected="@(Selected(q.Status, status) ? "selected" : null)">@StatusLabel(status)</option>
