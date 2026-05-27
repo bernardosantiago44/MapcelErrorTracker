@@ -52,30 +52,4 @@ public class UsersService(
             throw;
         }
     }
-
-    private static int GetRequiredInt32(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal)
-            ? throw new DataException($"Required database column {columnName} was null.")
-            : reader.GetInt32(ordinal);
-    }
-
-    private static string GetRequiredString(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal)
-            ? throw new DataException($"Required database column {columnName} was null.")
-            : reader.GetString(ordinal);
-    }
-
-    private static string GetNullableString(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-        return reader.IsDBNull(ordinal)
-            ? string.Empty
-            : reader.GetString(ordinal);
-    }
 }

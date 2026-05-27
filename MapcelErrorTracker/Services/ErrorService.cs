@@ -1024,7 +1024,6 @@ public class ErrorService(
             "en revision" => ErrorStatus.EnRevision,
             "pospuesto" => ErrorStatus.Pospuesto,
             "resuelto" => ErrorStatus.Resuelto,
-            "sin asignar" => ErrorStatus.SinAsignar,
             _ => ErrorStatus.SinAsignar
         };
 
@@ -1118,77 +1117,6 @@ public class ErrorService(
         }
 
         return activityLog;
-    }
-
-    private static string GetNullableString(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-        return reader.IsDBNull(ordinal) 
-            ? string.Empty 
-            : reader.GetString(ordinal);
-    }
-
-    private static string GetRequiredString(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal) 
-            ? throw new DataException($"Required database column {columnName} was null.") 
-            : reader.GetString(ordinal);
-    }
-
-    private static long GetRequiredInt64(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal) 
-            ? throw new DataException($"Required database column {columnName} was null.") 
-            : reader.GetInt64(ordinal);
-    }
-
-    private static int GetRequiredInt32(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal)
-            ? throw new DataException($"Required database column {columnName} was null.")
-            : reader.GetInt32(ordinal);
-    }
-
-    private static DateTime GetRequiredDateTime(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal)
-            ? throw new DataException($"Required database column {columnName} was null.")
-            : reader.GetDateTime(ordinal);
-    }
-
-    private static double GetRequiredDouble(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-
-        return reader.IsDBNull(ordinal)
-            ? throw new DataException($"Required database column {columnName} was null.")
-            : Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
-    }
-
-    private static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-        return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
-    }
-
-    private static int? GetNullableInt32(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
-    }
-
-    private static short? GetNullableInt16(SqlDataReader reader, string columnName)
-    {
-        var ordinal = reader.GetOrdinal(columnName);
-        return reader.IsDBNull(ordinal) ? null : reader.GetInt16(ordinal);
     }
 
     private static int ToNonNegativeInt(long value)

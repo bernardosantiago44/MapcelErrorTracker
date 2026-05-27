@@ -1,3 +1,5 @@
+using System.Data;
+using System.Globalization;
 using Microsoft.Data.SqlClient;
 
 namespace MapcelErrorTracker.Services;
@@ -47,5 +49,77 @@ public abstract class BaseService
         {
             connection.Close();
         }
+    }
+    
+    // ---------------- Extract data from columns given a reader and column name ----------------
+    protected static string GetRequiredString(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : reader.GetString(ordinal);
+    }
+    
+    protected static string GetNullableString(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal)
+            ? string.Empty
+            : reader.GetString(ordinal);
+    }
+    
+    protected static int GetRequiredInt32(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : reader.GetInt32(ordinal);
+    }
+    
+    protected static long GetRequiredInt64(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal) 
+            ? throw new DataException($"Required database column {columnName} was null.") 
+            : reader.GetInt64(ordinal);
+    }
+    
+    protected static DateTime GetRequiredDateTime(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : reader.GetDateTime(ordinal);
+    }
+    
+    protected static double GetRequiredDouble(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+
+        return reader.IsDBNull(ordinal)
+            ? throw new DataException($"Required database column {columnName} was null.")
+            : Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+    }
+
+    protected static DateTime? GetNullableDateTime(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+    }
+
+    protected static int? GetNullableInt32(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+    }
+
+    protected static short? GetNullableInt16(SqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt16(ordinal);
     }
 }
