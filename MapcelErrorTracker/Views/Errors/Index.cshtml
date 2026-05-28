@@ -551,11 +551,9 @@
                                 </th> 
                                 <th class="assignees-header">Resp.</th>
                                 <th>Descripción</th>
-                                <th>
-                                    <a href="@SortUrl(ErrorListSortFields.LastSeen)" class="sort-link">
-                                        Última vez
-                                        <i data-lucide="@SortIcon(ErrorListSortFields.LastSeen)"></i>
-                                    </a>
+                                <th style="text-align: center">
+                                    • Primera Vez <br/>
+                                    • Última vez
                                 </th>
                                 <th>Acciones Rápidas</th>
                             </tr>
@@ -608,7 +606,10 @@
                                     </td>
                                     <td data-label="Descripción" class="message-cell">@ShortMessage(error.Description)</td>
                                     <td data-label="Última vez">
-                                        <span class="date-cell">
+                                        <span class="date-cell text-center">
+                                            <span class="date-relative">@RelativeDate(error.FirstSeen)</span>
+                                            <span class="date-absolute border-b border-b-gray-600">@FormatDate(error.FirstSeen)</span>
+                                            
                                             <span class="date-relative">@RelativeDate(error.LastSeen)</span>
                                             <span class="date-absolute">@FormatDate(error.LastSeen)</span>
                                         </span>
