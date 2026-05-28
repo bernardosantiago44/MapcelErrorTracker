@@ -40,9 +40,14 @@ public class ErrorService(
                e.[err_NumAviso],
                e.[err_MailSended],
                e.[err_Status]
-        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] AS e
-        WHERE e.[err_Procesado] IS NULL
-           OR (e.[err_Procesado] IS NOT NULL AND DATEDIFF(DAY, COALESCE(e.[err_FechaUlt], e.[err_FechaGen]), GETDATE()) <= 1);
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistema] e
+        LEFT JOIN [MapaLocalizadorVisor].[dbo].[MNG_ENTERPRISES] ON [ENTERPRISE_ID] = e.[err_IdEnterprise]
+        WHERE e.[err_Procesado] IS NULL 
+            OR (e.[err_Procesado] IS NOT NULL AND DATEDIFF(DAY, e.[err_FechaUlt], GETDATE()) <= 1)
+        ORDER BY
+            CASE WHEN e.[err_Procesado] IS NULL THEN 0 ELSE 1 END,       -- primeros los NULL
+            CASE WHEN e.[err_Procesado] IS NULL THEN e.[err_FechaGen] END ASC,  -- dentro de NULL: por err_FechaGen asc
+            CASE WHEN e.[err_Procesado] IS NOT NULL THEN e.[err_Procesado] END DESC  -- después: por err_Procesado desc
         """;
     private const string SqlSelectErrorById = """
         SELECT e.[err_ID],
