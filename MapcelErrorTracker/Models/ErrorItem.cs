@@ -83,3 +83,55 @@ public class ErrorItem
     public string AdditionalComments { get; init; } = string.Empty;
     public string Location { get; init; } = string.Empty;
 }
+
+public record ErrorHistoryRecord(
+    long Id,
+    DateTime Date,
+    string Message,
+    string StackTrace
+); 
+
+public class ErrorDetails : ErrorItem
+{
+    public List<ErrorHistoryRecord> History { get; set; }
+
+    public ErrorDetails(ErrorItem item)
+    {
+        Id = item.Id;
+        Code = item.Code;
+        Company = item.Company;
+        Program = item.Program;
+        Module = item.Module;
+        Description = item.Description;
+        Priority = item.Priority;
+        Status = item.Status;
+        Occurrences = item.Occurrences;
+        HeatScore = item.HeatScore;
+        FirstSeen = item.FirstSeen;
+        LastSeen = item.LastSeen;
+        ExceptionMessage = item.ExceptionMessage;
+        StackTrace = item.StackTrace;
+        AssignedUsers = item.AssignedUsers;
+        AvailableAssignees = item.AvailableAssignees;
+        AssignedUsers = item.AssignedUsers;
+        BlocksOperation = item.BlocksOperation;
+        Process = item.Process;
+        Tags = item.Tags;
+        CreatedBy = item.CreatedBy;
+        ModifiedBy = item.ModifiedBy;
+        LastUpdated = item.LastUpdated;
+        NextFollowUp = item.NextFollowUp;
+        PostponeReason = item.PostponeReason;
+        LatestComment = item.LatestComment;
+        NextStep = item.NextStep;
+        CorrelationId = item.CorrelationId;
+        RequestId = item.RequestId;
+        FolioNumber = item.FolioNumber;
+        RequestPayload = item.RequestPayload;
+        ResponsePayload = item.ResponsePayload;
+        RawHeaders = item.RawHeaders;
+        AdditionalComments = item.AdditionalComments;
+        Location = item.Location;
+        History = [];
+    }
+}

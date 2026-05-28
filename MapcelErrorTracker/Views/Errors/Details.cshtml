@@ -1,4 +1,4 @@
-@model MapcelErrorTracker.Models.ErrorItem
+@model MapcelErrorTracker.Models.ErrorDetails
 @{
     ViewData["Title"] = Model.Code;
     var errorAge = DateTime.UtcNow - Model.FirstSeen;
@@ -10,6 +10,8 @@
     var backUrl = !string.IsNullOrWhiteSpace(returnUrl)
         ? returnUrl
         : Url.Action("Index", "Errors");
+    var hasHistory = Model.History.Count > 0;
+    var historyOpen = hasHistory.ToString().ToLowerInvariant();
 }
 
 @functions {
@@ -514,6 +516,75 @@
             FirstSeen = Model.FirstSeen,
             LastSeen = Model.LastSeen
         })
+        
+        <!-- Section: Error history occurence table -->
+        <section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" x-data="{ open: @historyOpen }">
+            <button @@click="open = !open" class="w-full px-5 py-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors text-left">
+                <h2 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <i data-lucide="clipboard-list" style="width:16px;height:16px" class="text-teal-600"></i>
+                    Historial de ocurrencias
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+                        @Model.History.Count registro@(Model.History.Count == 1 ? string.Empty : "s")
+                    </span>
+                </h2>
+                <i data-lucide="chevron-down" style="width:16px;height:16px" class="text-gray-400 transition-transform" x-bind:class="open ? 'rotate-180' : ''"></i>
+            </button>
+            <div x-show="open" x-transition class="p-5">
+                @if (hasHistory)
+                {
+                    <div class="max-h-96 overflow-auto rounded-lg border border-gray-200">
+                        <table class="min-w-full border-collapse text-left text-sm">
+                            <thead class="bg-gray-700 text-xs uppercase tracking-wide text-white">
+                                <tr>
+                                    <th scope="col" class="sticky top-0 z-10 w-14 border-r border-gray-500 bg-gray-700 px-3 py-2 font-semibold">#</th>
+                                    <th scope="col" class="sticky top-0 z-10 w-28 border-r border-gray-500 bg-gray-700 px-3 py-2 font-semibold whitespace-nowrap">ID. Hist</th>
+                                    <th scope="col" class="sticky top-0 z-10 w-28 border-r border-gray-500 bg-gray-700 px-3 py-2 font-semibold">Fecha</th>
+                                    <th scope="col" class="sticky top-0 z-10 min-w-80 border-r border-gray-500 bg-gray-700 px-3 py-2 font-semibold">Mensaje</th>
+                                    <th scope="col" class="sticky top-0 z-10 min-w-96 bg-gray-700 px-3 py-2 font-semibold">Stack Trace</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                @for (var index = 0; index < Model.History.Count; index++)
+                                {
+                                    var record = Model.History[index];
+                                    <tr class="align-top hover:bg-gray-50">
+                                        <td class="border-r border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600">@(index + 1)</td>
+                                        <td class="border-r border-gray-200 px-3 py-2 font-mono text-xs text-gray-700">@record.Id</td>
+                                        <td class="border-r border-gray-200 px-3 py-2 text-xs text-gray-700">@record.Date</td>
+                                        <td class="border-r border-gray-200 px-3 py-2 text-sm leading-relaxed text-gray-800">
+                                            @if (HasValue(record.Message))
+                                            {
+                                                <span class="detail-wrap">@record.Message</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-gray-400">Sin mensaje registrado.</span>
+                                            }
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            @if (HasValue(record.StackTrace))
+                                            {
+                                                <pre class="detail-wrap m-0 whitespace-pre-wrap text-xs leading-relaxed text-gray-700 font-mono">@record.StackTrace</pre>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-sm text-gray-400">Sin stack trace registrado.</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                        No hay historial de ocurrencias registrado.
+                    </div>
+                }
+            </div>
+        </section>
 
         <!-- Section 3: Technical data (expanded compact, collapsible) -->
         <section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" x-data="{ open: true, stExpanded: false }">
