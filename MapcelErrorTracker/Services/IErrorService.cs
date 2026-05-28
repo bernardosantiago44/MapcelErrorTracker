@@ -6,7 +6,7 @@ public interface IErrorService
 {
     Task<ErrorListViewModel> GetListAsync(ErrorListQuery query, CancellationToken cancellationToken);
 
-    Task<ErrorItem> GetByIdAsync(long id, CancellationToken cancellationToken);
+    Task<ErrorDetails> GetByIdAsync(long id, CancellationToken cancellationToken);
 
     Task UpdateStatusAsync(long id, ErrorStatus status, CancellationToken cancellationToken);
 
