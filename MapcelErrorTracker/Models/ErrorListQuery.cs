@@ -9,7 +9,7 @@ public class ErrorListQuery
     public string? Program { get; init; }
     public string? Status { get; set; }
     public string? Priority { get; set; }
-    public string SortBy { get; set; } = ErrorListSortFields.LastSeen;
+    public string SortBy { get; set; } = ErrorListSortFields.Importance;
     public string SortDirection { get; set; } = "desc";
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = DefaultPageSize;

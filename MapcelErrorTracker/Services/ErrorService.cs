@@ -660,11 +660,6 @@ public class ErrorService(
         {
             filtered = filtered.Where(error => error.Status == status);
         }
-        else
-        {
-            filtered = filtered.Where(error => error.Status != ErrorStatus.Resuelto);
-            query.Status = null;
-        }
 
         if (!string.IsNullOrWhiteSpace(query.Priority) &&
             Enum.TryParse<ErrorPriority>(query.Priority, ignoreCase: true, out var priority))
@@ -703,35 +698,39 @@ public class ErrorService(
     {
         var descending = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
 
-        var sorted = sortBy switch
+        var sorted = errors.OrderBy(error => ResolvedErrorsLastRank(error.Status));
+
+        sorted = sortBy switch
         {
             ErrorListSortFields.Status => descending
-                ? errors.OrderByDescending(error => StatusRank(error.Status))
-                : errors.OrderBy(error => StatusRank(error.Status)),
+                ? sorted.ThenByDescending(error => StatusRank(error.Status))
+                : sorted.ThenBy(error => StatusRank(error.Status)),
             ErrorListSortFields.Priority => descending
-                ? errors.OrderByDescending(error => PriorityRank(error.Priority))
-                : errors.OrderBy(error => PriorityRank(error.Priority)),
+                ? sorted.ThenByDescending(error => PriorityRank(error.Priority))
+                : sorted.ThenBy(error => PriorityRank(error.Priority)),
             ErrorListSortFields.Company => descending
-                ? errors.OrderByDescending(error => error.Company)
-                : errors.OrderBy(error => error.Company),
+                ? sorted.ThenByDescending(error => error.Company)
+                : sorted.ThenBy(error => error.Company),
             ErrorListSortFields.ErrorCode => descending
-                ? errors.OrderByDescending(error => error.Code)
-                : errors.OrderBy(error => error.Code),
+                ? sorted.ThenByDescending(error => error.Code)
+                : sorted.ThenBy(error => error.Code),
             ErrorListSortFields.Occurrences => descending
-                ? errors.OrderByDescending(error => error.Occurrences)
-                : errors.OrderBy(error => error.Occurrences),
+                ? sorted.ThenByDescending(error => error.Occurrences)
+                : sorted.ThenBy(error => error.Occurrences),
             ErrorListSortFields.Importance => descending
-                ? errors.OrderByDescending(error => error.HeatScore)
-                : errors.OrderBy(error => error.HeatScore),
+                ? sorted.ThenByDescending(error => error.HeatScore)
+                : sorted.ThenBy(error => error.HeatScore),
             ErrorListSortFields.FirstSeen => descending
-                ? errors.OrderByDescending(error => error.FirstSeen)
-                : errors.OrderBy(error => error.FirstSeen),
+                ? sorted.ThenByDescending(error => error.FirstSeen)
+                : sorted.ThenBy(error => error.FirstSeen),
             _ => descending
-                ? errors.OrderByDescending(error => error.LastSeen)
-                : errors.OrderBy(error => error.LastSeen)
+                ? sorted.ThenByDescending(error => error.LastSeen)
+                : sorted.ThenBy(error => error.LastSeen)
         };
 
-        return sorted.ThenByDescending(error => error.LastSeen).ThenBy(error => error.Code);
+        return sorted
+            .ThenByDescending(error => error.LastSeen)
+            .ThenBy(error => error.Code);
     }
 
     private static int PriorityRank(ErrorPriority priority)
@@ -757,6 +756,15 @@ public class ErrorService(
         };
     }
 
+    private static int ResolvedErrorsLastRank(ErrorStatus status)
+    {
+        return status switch
+        {
+            ErrorStatus.Resuelto => 1,
+            _ => 0
+        };
+    }
+
     private static bool TryParseStatusName(string? value, out ErrorStatus status)
     {
         status = default;
@@ -772,6 +780,10 @@ public class ErrorService(
         var lastSeen = GetNullableDateTime(reader, "err_FechaUlt") ?? firstSeen;
         var processedAt = GetNullableDateTime(reader, "err_Procesado");
         var enterpriseId = GetNullableInt32(reader, "err_IdEnterprise");
+        var procesado = GetNullableDateTime(reader, "err_Procesado");
+        
+        // If marked as processed, resolve status as closed
+        var status = procesado.HasValue ? "resuelto" : GetNullableString(reader, "err_Status");
 
         return new ErrorItem
         {
@@ -782,7 +794,7 @@ public class ErrorService(
             Module = GetRequiredString(reader, "err_Programa_Modulo"),
             Process = GetNullableString(reader, "err_Programa_Proceso"),
             Priority = ParsePriority(GetRequiredString(reader, "err_Prioridad")),
-            Status = ParseStatus(GetNullableString(reader, "err_Status")),
+            Status = ParseStatus(status),
             Occurrences = GetNullableInt16(reader, "err_Contador") ?? 0,
             FirstSeen = firstSeen,
             LastSeen = lastSeen,
