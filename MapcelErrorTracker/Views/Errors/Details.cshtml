@@ -86,11 +86,6 @@
         word-break: break-word;
     }
 
-    .occurrence-chart-shell,
-    .occurrence-chart-canvas {
-        touch-action: pan-y;
-    }
-
     @@media (max-width: 760px) {
         .detail-topbar {
             padding: 10px 14px;
@@ -123,38 +118,8 @@
             line-height: 1.35;
         }
 
-        .detail-mobile-stack {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-
         .detail-mobile-stack time {
             margin-left: 0;
-        }
-
-        .occurrence-toolbar {
-            align-items: stretch;
-        }
-
-        .occurrence-range-group {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100%;
-        }
-
-        .occurrence-range {
-            min-height: 36px;
-            padding-inline: 8px;
-            text-align: center;
-        }
-
-        .occurrence-chart-frame {
-            padding: 8px;
-        }
-
-        .occurrence-chart-shell {
-            height: 240px;
-            min-height: 240px;
         }
     }
 </style>
@@ -196,6 +161,7 @@
                 <h1 class="detail-code text-xl font-bold font-mono text-gray-900 mb-1">@Model.Code</h1>
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                     <span class="flex items-center gap-1"><i data-lucide="code-2" style="width:12px;height:12px"></i> @Model.Program</span>
+                    <span class="flex items-center gap-1"><i data-lucide="hash" style="width: 12px;height: 12px;"></i> @Model.Id </span>
                 </div>
             </div>
 
@@ -257,6 +223,7 @@
                 }
                 <form asp-action="AssignUsers" method="post" class="space-y-3">
                     <input type="hidden" name="id" value="@Model.Id"/>
+                    <input type="hidden" name="returnUrl" value="@returnUrl"/>
                     @foreach (var user in Model.AvailableAssignees)
                     {
                         var isSelected = assignedUserIds.Contains(user.Id);
@@ -297,6 +264,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.EnRevision"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                                 <i data-lucide="eye" style="width:14px;height:14px"></i> En revisión
@@ -307,6 +275,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.Resuelto"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-emerald-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
                                 <i data-lucide="check-circle" style="width:14px;height:14px"></i> Resolver
@@ -317,6 +286,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.Pospuesto"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-purple-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-purple-600 transition-colors">
                                 <i data-lucide="clock" style="width:14px;height:14px"></i> Posponer
@@ -327,6 +297,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.Nuevo"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-teal-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-teal-600 transition-colors">
                                 <i data-lucide="rotate-ccw" style="width:14px;height:14px"></i> Reabrir
@@ -339,6 +310,7 @@
                         <label class="text-xs text-gray-400 w-16">Prioridad</label>
                         <form asp-action="UpdatePriority" method="post" class="flex items-center gap-2 flex-1">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <select name="priority" class="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-gray-50 flex-1 focus:outline-none focus:ring-2 focus:ring-teal-400">
                                 @foreach (var p in Enum.GetValues<ErrorPriority>())
                                 {
@@ -354,6 +326,7 @@
                         <label class="text-xs text-gray-400 w-16">Estado</label>
                         <form asp-action="UpdateStatus" method="post" class="flex items-center gap-2 flex-1">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <select name="status" class="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-gray-50 flex-1 focus:outline-none focus:ring-2 focus:ring-teal-400">
                                 @foreach (var s in Enum.GetValues<ErrorStatus>())
                                 {
@@ -967,4 +940,22 @@
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="~/js/occurrence-trend.js" asp-append-version="true"></script>
+    <script>
+        (() => {
+            const url = new URL(window.location.href);
+            const shouldRefreshParent = url.searchParams.get('refreshParent')?.toLowerCase() === 'true';
+            if (!shouldRefreshParent) return;
+
+            url.searchParams.delete('refreshParent');
+            window.history.replaceState({}, document.title, url.toString());
+
+            try {
+                if (window.opener && !window.opener.closed) {
+                    window.opener.location.reload();
+                }
+            } catch {
+                // The opener may be unavailable if the page was not opened as a same-origin popup.
+            }
+        })();
+    </script>
 }
