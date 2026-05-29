@@ -223,6 +223,7 @@
                 }
                 <form asp-action="AssignUsers" method="post" class="space-y-3">
                     <input type="hidden" name="id" value="@Model.Id"/>
+                    <input type="hidden" name="returnUrl" value="@returnUrl"/>
                     @foreach (var user in Model.AvailableAssignees)
                     {
                         var isSelected = assignedUserIds.Contains(user.Id);
@@ -263,6 +264,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.EnRevision"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-blue-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                                 <i data-lucide="eye" style="width:14px;height:14px"></i> En revisión
@@ -273,6 +275,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.Resuelto"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-emerald-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors">
                                 <i data-lucide="check-circle" style="width:14px;height:14px"></i> Resolver
@@ -283,6 +286,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.Pospuesto"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-purple-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-purple-600 transition-colors">
                                 <i data-lucide="clock" style="width:14px;height:14px"></i> Posponer
@@ -293,6 +297,7 @@
                     {
                         <form asp-action="UpdateStatus" method="post">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <input type="hidden" name="status" value="@ErrorStatus.Nuevo"/>
                             <button type="submit" class="w-full flex items-center justify-center gap-1.5 bg-teal-500 text-white text-sm px-3 py-2 rounded-lg hover:bg-teal-600 transition-colors">
                                 <i data-lucide="rotate-ccw" style="width:14px;height:14px"></i> Reabrir
@@ -305,6 +310,7 @@
                         <label class="text-xs text-gray-400 w-16">Prioridad</label>
                         <form asp-action="UpdatePriority" method="post" class="flex items-center gap-2 flex-1">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <select name="priority" class="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-gray-50 flex-1 focus:outline-none focus:ring-2 focus:ring-teal-400">
                                 @foreach (var p in Enum.GetValues<ErrorPriority>())
                                 {
@@ -320,6 +326,7 @@
                         <label class="text-xs text-gray-400 w-16">Estado</label>
                         <form asp-action="UpdateStatus" method="post" class="flex items-center gap-2 flex-1">
                             <input type="hidden" name="id" value="@Model.Id"/>
+                            <input type="hidden" name="returnUrl" value="@returnUrl"/>
                             <select name="status" class="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-gray-50 flex-1 focus:outline-none focus:ring-2 focus:ring-teal-400">
                                 @foreach (var s in Enum.GetValues<ErrorStatus>())
                                 {
@@ -933,4 +940,22 @@
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="~/js/occurrence-trend.js" asp-append-version="true"></script>
+    <script>
+        (() => {
+            const url = new URL(window.location.href);
+            const shouldRefreshParent = url.searchParams.get('refreshParent')?.toLowerCase() === 'true';
+            if (!shouldRefreshParent) return;
+
+            url.searchParams.delete('refreshParent');
+            window.history.replaceState({}, document.title, url.toString());
+
+            try {
+                if (window.opener && !window.opener.closed) {
+                    window.opener.location.reload();
+                }
+            } catch {
+                // The opener may be unavailable if the page was not opened as a same-origin popup.
+            }
+        })();
+    </script>
 }

@@ -74,12 +74,16 @@ public class ErrorsController(
     }
 
     [HttpPost]
-    public async Task<IActionResult> UpdateStatus(long id, string status, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateStatus(
+        long id,
+        string status,
+        string? returnUrl,
+        CancellationToken cancellationToken)
     {
         if (!TryParseStatus(status, out var parsed))
         {
             logger.LogWarning("Invalid status value {Status} received for error {ErrorId}.", status, id);
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToDetails(id, returnUrl);
         }
 
         try
@@ -110,7 +114,7 @@ public class ErrorsController(
             return StatusCode(500, "Internal server error");
         }
 
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToDetails(id, returnUrl, refreshParent: true);
     }
 
     [HttpPost]
@@ -150,12 +154,16 @@ public class ErrorsController(
     }
 
     [HttpPost]
-    public async Task<IActionResult> UpdatePriority(long id, string priority, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdatePriority(
+        long id,
+        string priority,
+        string? returnUrl,
+        CancellationToken cancellationToken)
     {
         if (!Enum.TryParse<ErrorPriority>(priority, out var parsed))
         {
             logger.LogWarning("Invalid priority value {Priority} received for error {ErrorId}.", priority, id);
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToDetails(id, returnUrl);
         }
 
         try
@@ -178,11 +186,15 @@ public class ErrorsController(
             return StatusCode(500, "Internal server error");
         }
 
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToDetails(id, returnUrl, refreshParent: true);
     }
 
     [HttpPost]
-    public async Task<IActionResult> AssignUsers(long id, int[]? userIds, CancellationToken cancellationToken)
+    public async Task<IActionResult> AssignUsers(
+        long id,
+        int[]? userIds,
+        string? returnUrl,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -207,7 +219,7 @@ public class ErrorsController(
             return StatusCode(500, "Internal server error");
         }
 
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToDetails(id, returnUrl, refreshParent: true);
     }
 
     private static bool TryParseStatus(string? status, out ErrorStatus parsed)
@@ -227,5 +239,17 @@ public class ErrorsController(
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    private IActionResult RedirectToDetails(long id, string? returnUrl, bool refreshParent = false)
+    {
+        return RedirectToAction(nameof(Details), new
+        {
+            id,
+            returnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+                ? returnUrl
+                : null,
+            refreshParent = refreshParent ? true : (bool?)null
+        });
     }
 }
