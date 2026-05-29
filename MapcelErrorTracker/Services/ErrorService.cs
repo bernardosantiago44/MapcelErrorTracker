@@ -144,7 +144,17 @@ public class ErrorService(
             END,
             [err_NombreModifico] = @modifiedBy
         WHERE [err_ID] = @id;
-        """;
+    """;
+    private const string SqlSelectErrorHistoryValues = """
+        SELECT 
+            [errh_Id] AS [ErrorHistoryId],
+            [errh_ExSMsg] AS [ErrorMessage],
+            [errh_ExStacktrace] AS [StackTrace],
+            [errh_Created] AS [Date]
+        FROM [MapaLocalizadorVisor].[dbo].[ErrorSistemaHistory]
+        WHERE [errh_err_ID] = @id
+        ORDER BY [errh_Created] DESC, [errh_Id] DESC;
+    """;
 
     public async Task<ErrorListViewModel> GetListAsync(
         ErrorListQuery query,
@@ -168,7 +178,7 @@ public class ErrorService(
         }
     }
 
-    public async Task<ErrorItem> GetByIdAsync(long id, CancellationToken cancellationToken)
+    public async Task<ErrorDetails> GetByIdAsync(long id, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
 
@@ -193,12 +203,47 @@ public class ErrorService(
             }
 
             error.AssignedUsers = await GetAssignedUsersAsync(connection, id, cancellationToken);
-
-            return error;
+            var history = new ErrorDetails(error);
+            var historyDetails = await GetHistoryDetailsAsync(id, connection, cancellationToken);
+            
+            history.History = historyDetails;
+            return history;
         }
         catch (SqlException exception)
         {
             logger.LogError(exception, "Unable to load error {ErrorId} from the database.", id);
+            throw;
+        }
+    }
+
+    private async Task<List<ErrorHistoryRecord>> GetHistoryDetailsAsync(
+        long errorId, SqlConnection connection, CancellationToken cancellationToken
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(errorId);
+        
+        try
+        {
+            await using var command = new SqlCommand(SqlSelectErrorHistoryValues, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = errorId });
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            List<ErrorHistoryRecord> historyRecords = [];
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var recordId = reader.GetInt64(0);
+                var message = GetNullableString(reader, 1);
+                var stackTrace = GetNullableString(reader, 2);
+                var date = reader.GetDateTime(3);
+                
+                historyRecords.Add(new ErrorHistoryRecord(recordId, date, message, stackTrace));
+            }
+            return historyRecords;
+        } catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to load error history from the database. {message}", exception.Message);
             throw;
         }
     }
@@ -887,6 +932,13 @@ public class ErrorService(
         return reader.IsDBNull(ordinal) 
             ? string.Empty 
             : reader.GetString(ordinal);
+    }
+
+    private static string GetNullableString(SqlDataReader reader, int columnPosition)
+    {
+        return reader.IsDBNull(columnPosition)
+            ? string.Empty
+            : reader.GetString(columnPosition);
     }
 
     private static string GetRequiredString(SqlDataReader reader, string columnName)
