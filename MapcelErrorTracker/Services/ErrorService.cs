@@ -155,6 +155,16 @@ public class ErrorService(
         WHERE [errh_err_ID] = @id
         ORDER BY [errh_Created] DESC, [errh_Id] DESC;
     """;
+    private const string SqlMarkedErrorSolved = """
+        UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
+        SET [err_Procesado] = GETDATE()
+        WHERE [err_ID] = @id;
+    """;
+    private const string SqlMarkErrorUnresolved = """
+        UPDATE [MapaLocalizadorVisor].[dbo].[ErrorSistema]
+        SET [err_Procesado] = null
+        WHERE [err_ID] = @id;
+    """;
 
     public async Task<ErrorListViewModel> GetListAsync(
         ErrorListQuery query,
@@ -285,6 +295,60 @@ public class ErrorService(
         catch (SqlException exception)
         {
             logger.LogError(exception, "Unable to update status for error {ErrorId}.", id);
+            throw;
+        }
+    }
+
+    public async Task ResolveErrorAsync(long id, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+        try
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = new SqlCommand(SqlMarkedErrorSolved, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+            if (rowsAffected == 0)
+            {
+                throw new NotFoundException(nameof(ErrorItem));
+            }
+
+            logger.LogInformation("Error resolved for error {ErrorId}.", id);
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to resolve error {ErrorId}.", id);
+            throw;
+        }
+    }
+    
+    public async Task UnresolveErrorAsync(long id, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(id);
+        try
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = new SqlCommand(SqlMarkErrorUnresolved, connection);
+            command.CommandType = CommandType.Text;
+            command.Parameters.Add(new SqlParameter("@id", SqlDbType.BigInt) { Value = id });
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+            if (rowsAffected == 0)
+            {
+                throw new NotFoundException(nameof(ErrorItem));
+            }
+
+            logger.LogInformation("Reopened error {ErrorId}.", id);
+        }
+        catch (SqlException exception)
+        {
+            logger.LogError(exception, "Unable to open error {ErrorId}.", id);
             throw;
         }
     }

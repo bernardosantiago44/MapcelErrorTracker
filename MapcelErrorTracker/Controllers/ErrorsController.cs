@@ -85,6 +85,14 @@ public class ErrorsController(
         try
         {
             await service.UpdateStatusAsync(id, parsed, cancellationToken);
+            if (parsed.Equals(ErrorStatus.Resuelto))
+            {
+                await service.ResolveErrorAsync(id, cancellationToken);
+            }
+            else
+            {
+                await service.UnresolveErrorAsync(id, cancellationToken);
+            }
         }
         catch (NotFoundException)
         {
