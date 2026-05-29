@@ -168,10 +168,19 @@
 </div>
 
 <!-- Two column layout -->
-<div class="error-detail-layout flex flex-col lg:flex-row gap-6 px-4 sm:px-6 py-6 max-w-screen-2xl mx-auto">
+<div class="error-detail-layout flex flex-col lg:flex-row gap-6 px-4 sm:px-6 py-6 max-w-screen-2xl mx-auto" x-data="{ summaryOpen: true }">
+    <button type="button"
+            @@click="summaryOpen = !summaryOpen"
+            x-bind:aria-expanded="summaryOpen.toString()"
+            x-bind:aria-label="summaryOpen ? 'Ocultar resumen lateral' : 'Mostrar resumen lateral'"
+            x-bind:title="summaryOpen ? 'Ocultar resumen' : 'Mostrar resumen'"
+            class="fixed left-3 top-16 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-sm backdrop-blur transition-colors hover:border-teal-300 hover:text-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+        <i data-lucide="panel-left-close" style="width:17px;height:17px" x-show="summaryOpen"></i>
+        <i data-lucide="panel-left-open" style="width:17px;height:17px" x-show="!summaryOpen"></i>
+    </button>
 
     <!-- ==================== LEFT COLUMN: Sticky summary ==================== -->
-    <aside class="w-full lg:w-96 lg:shrink-0">
+    <aside x-show="summaryOpen" x-transition class="w-full lg:w-96 lg:shrink-0">
         <div class="lg:sticky lg:top-4 space-y-4">
 
             <!-- 1. Incident header -->
