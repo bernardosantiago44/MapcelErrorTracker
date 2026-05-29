@@ -86,11 +86,6 @@
         word-break: break-word;
     }
 
-    .occurrence-chart-shell,
-    .occurrence-chart-canvas {
-        touch-action: pan-y;
-    }
-
     @@media (max-width: 760px) {
         .detail-topbar {
             padding: 10px 14px;
@@ -123,38 +118,8 @@
             line-height: 1.35;
         }
 
-        .detail-mobile-stack {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-
         .detail-mobile-stack time {
             margin-left: 0;
-        }
-
-        .occurrence-toolbar {
-            align-items: stretch;
-        }
-
-        .occurrence-range-group {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100%;
-        }
-
-        .occurrence-range {
-            min-height: 36px;
-            padding-inline: 8px;
-            text-align: center;
-        }
-
-        .occurrence-chart-frame {
-            padding: 8px;
-        }
-
-        .occurrence-chart-shell {
-            height: 240px;
-            min-height: 240px;
         }
     }
 </style>
@@ -196,6 +161,7 @@
                 <h1 class="detail-code text-xl font-bold font-mono text-gray-900 mb-1">@Model.Code</h1>
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                     <span class="flex items-center gap-1"><i data-lucide="code-2" style="width:12px;height:12px"></i> @Model.Program</span>
+                    <span class="flex items-center gap-1"><i data-lucide="hash" style="width: 12px;height: 12px;"></i> @Model.Id </span>
                 </div>
             </div>
 
